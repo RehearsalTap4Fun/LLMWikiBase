@@ -8,3 +8,10 @@ __pycache__/
 .venv/
 venv/
 .obsidian/graph.json
+
+# 机密:工作项目素材与沉淀页面仅本地保留,不推送公开仓
+# (Tap4fun 内部数据等。保留 .gitkeep 以维持目录结构)
+sources/work/*
+!sources/work/.gitkeep
+wiki/work/*
+!wiki/work/.gitkeep
