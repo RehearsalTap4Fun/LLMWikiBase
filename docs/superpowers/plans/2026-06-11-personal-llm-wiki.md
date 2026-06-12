@@ -248,7 +248,7 @@ import argparse
 import re
 import sys
 
-from rank_bm25 import BM25Okapi
+from rank_bm25 import BM25Plus  # 用 Plus 而非 Okapi：小语料下某词出现在所有文档时 Okapi 的 IDF 会转负，导致分数被 score<=0 过滤掉
 
 import frontmatter as fm
 
@@ -268,7 +268,7 @@ def search(wiki_dir, query, domain=None, type_filter=None, top=5):
         return []
     corpus = [tokenize(p["name"] + " " + str(p["meta"].get("title", "")) + " " + p["body"])
               for p in pages]
-    bm25 = BM25Okapi(corpus)
+    bm25 = BM25Plus(corpus)
     scores = bm25.get_scores(tokenize(query))
     ranked = sorted(zip(pages, scores), key=lambda x: x[1], reverse=True)
     results = []
@@ -688,6 +688,11 @@ Run: `cd tools && python -m pytest -v`
 Expected: PASS（11 个测试）
 
 ---
+
+## 实现中发现的偏差记录
+
+- Task 3：`BM25Okapi` → `BM25Plus`。小语料下某词出现在所有文档时 Okapi 的 IDF 转负，分数被 `score<=0` 过滤掉；Plus 的加性 IDF 恒正。
+- Task 7：两个 CLI 的 `main()` 增加 `sys.stdout.reconfigure(encoding="utf-8")`。Windows 控制台默认 GBK，中文输出乱码；reconfigure 仅影响命令行输出，不改文件读写(文件始终 UTF-8)。
 
 ## 验证清单（对照 spec）
 
