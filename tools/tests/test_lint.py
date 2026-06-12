@@ -61,3 +61,30 @@ def test_lint_orphan_detection(tmp_path):
     assert "lonely.md" in orphans_str       # no in-links, no out-links -> orphan
     assert "hub.md" not in orphans_str       # has an out-link -> not orphan
     assert "leaf.md" not in orphans_str      # linked-to by hub -> not orphan
+
+def test_lint_honors_frontmatter_links(tmp_path):
+    wiki = tmp_path / "wiki"
+    (wiki / "work").mkdir(parents=True)
+    # alpha links to beta ONLY via frontmatter links:, no body [[ ]]
+    (wiki / "work" / "alpha.md").write_text(
+        "---\ntitle: Alpha\ntype: project\ndomain: work\nsource: chat\n"
+        "date: 2026-06-11\nconfidence: high\nlinks: [\"[[beta]]\"]\n---\nbody no inline link",
+        encoding="utf-8")
+    (wiki / "work" / "beta.md").write_text(
+        "---\ntitle: Beta\ntype: project\ndomain: work\nsource: chat\n"
+        "date: 2026-06-11\nconfidence: high\n---\nbody",
+        encoding="utf-8")
+    report = L.lint(str(wiki), today=datetime.date(2026, 6, 11))
+    orphans_str = " ".join(report["orphans"])
+    assert "alpha.md" not in orphans_str   # has frontmatter out-link -> not orphan
+    assert "beta.md" not in orphans_str    # linked-to via frontmatter -> not orphan
+
+def test_lint_detects_broken_frontmatter_link(tmp_path):
+    wiki = tmp_path / "wiki"
+    (wiki / "work").mkdir(parents=True)
+    (wiki / "work" / "g.md").write_text(
+        "---\ntitle: G\ntype: project\ndomain: work\nsource: chat\n"
+        "date: 2026-06-11\nconfidence: high\nlinks: [\"[[nonexistent]]\"]\n---\nbody",
+        encoding="utf-8")
+    report = L.lint(str(wiki), today=datetime.date(2026, 6, 11))
+    assert any("nonexistent" in s for s in report["broken_links"])

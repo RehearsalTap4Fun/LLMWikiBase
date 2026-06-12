@@ -24,6 +24,18 @@ REQUIRED_FIELDS = ["title", "type", "domain", "source", "date", "confidence"]
 _LINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
 
+def _extract_targets(page):
+    """收集页面所有链接目标：正文内联 [[x]] + frontmatter links 字段。"""
+    targets = list(_LINK_RE.findall(page["body"]))
+    raw = page["meta"].get("links")
+    if isinstance(raw, str):
+        raw = [raw]
+    if isinstance(raw, list):
+        for item in raw:
+            targets.extend(_LINK_RE.findall(str(item)))
+    return targets
+
+
 def lint(wiki_dir, domain=None, stale_days=180, today=None):
     if today is None:
         today = datetime.date.today()
@@ -35,7 +47,7 @@ def lint(wiki_dir, domain=None, stale_days=180, today=None):
     has_outlink = {}
 
     for p in pages:
-        targets = _LINK_RE.findall(p["body"])
+        targets = _extract_targets(p)
         has_outlink[p["name"]] = bool(targets)
         for t in targets:
             t = t.strip()
