@@ -5,6 +5,13 @@
 
 用法:
     python tools/lint.py [--wiki DIR] [--domain D] [--stale-days N]
+
+已知限制:
+- 链接按页面 basename(name)解析。不同子目录下同名文件(如 work/x.md 与
+  ai-llm/x.md)会在 name 上冲突，可能导致 [[x]] 解析到非预期页面、或某页被漏检孤立状态。
+  建议页面文件名全库唯一。
+- 加 --domain 时只扫描该域；跨域 [[链接]] 的目标不在扫描集内，会被误报为断链，
+  其目标页也可能被误判为孤立。需要全量校验时不要加 --domain。
 """
 import argparse
 import datetime

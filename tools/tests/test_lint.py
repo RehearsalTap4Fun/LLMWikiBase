@@ -39,3 +39,25 @@ def test_lint_detects_low_confidence(tmp_path):
         encoding="utf-8")
     report = L.lint(str(wiki), today=datetime.date(2026, 6, 11))
     assert any("d.md" in s for s in report["low_confidence"])
+
+def test_lint_orphan_detection(tmp_path):
+    wiki = tmp_path / "wiki"
+    (wiki / "work").mkdir(parents=True)
+    # hub links to leaf; lonely has no links in or out
+    (wiki / "work" / "hub.md").write_text(
+        "---\ntitle: Hub\ntype: project\ndomain: work\nsource: chat\n"
+        "date: 2026-06-11\nconfidence: high\n---\n see [[leaf]]",
+        encoding="utf-8")
+    (wiki / "work" / "leaf.md").write_text(
+        "---\ntitle: Leaf\ntype: project\ndomain: work\nsource: chat\n"
+        "date: 2026-06-11\nconfidence: high\n---\n no links here",
+        encoding="utf-8")
+    (wiki / "work" / "lonely.md").write_text(
+        "---\ntitle: Lonely\ntype: project\ndomain: work\nsource: chat\n"
+        "date: 2026-06-11\nconfidence: high\n---\n alone",
+        encoding="utf-8")
+    report = L.lint(str(wiki), today=datetime.date(2026, 6, 11))
+    orphans_str = " ".join(report["orphans"])
+    assert "lonely.md" in orphans_str       # no in-links, no out-links -> orphan
+    assert "hub.md" not in orphans_str       # has an out-link -> not orphan
+    assert "leaf.md" not in orphans_str      # linked-to by hub -> not orphan
