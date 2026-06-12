@@ -16,6 +16,7 @@
 import argparse
 import datetime
 import re
+import sys
 
 import frontmatter as fm
 
@@ -67,6 +68,8 @@ def lint(wiki_dir, domain=None, stale_days=180, today=None):
 
 
 def main(argv=None):
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台默认 GBK，避免中文乱码
     parser = argparse.ArgumentParser(description="wiki 健康检查")
     parser.add_argument("--wiki", default="wiki", help="wiki 目录(默认 wiki)")
     parser.add_argument("--domain", default=None, help="限定域: work/gaming/ai-llm")

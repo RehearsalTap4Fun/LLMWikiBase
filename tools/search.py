@@ -47,6 +47,8 @@ def search(wiki_dir, query, domain=None, type_filter=None, top=5):
 
 
 def main(argv=None):
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台默认 GBK，避免中文乱码
     parser = argparse.ArgumentParser(description="BM25 搜索 wiki 页面")
     parser.add_argument("query", help="搜索关键词")
     parser.add_argument("--wiki", default="wiki", help="wiki 目录(默认 wiki)")
