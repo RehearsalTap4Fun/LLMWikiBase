@@ -18,7 +18,11 @@
 ## gaming — 游戏行业研究
 
 **概念/规范**
+- [[dungeon-maker-framework-pattern]] — Dungeon Maker 式地牢经营框架:每日卡牌路径 + 地牢建设 + 自动战斗 + 局外解锁。
 - [[高兼容性风险修改项自检]] — K1 开发规范:哪些改动有新旧版本兼容风险,提交前必查的 8 项清单。
+
+**素材摘要**
+- [[dungeon-maker-reference-resource]] — Dungeon Maker 参考资源包:本地 JSON 配置物料与框架说明,用于后续开发参考。
 
 ## ai-llm — AI/LLM 学习
 

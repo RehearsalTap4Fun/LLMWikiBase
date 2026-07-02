@@ -2,6 +2,30 @@
 
 > 追加式、按时间倒序。条目格式可 grep：`## [YYYY-MM-DD] 动作 — 摘要`
 
+## [2026-07-01] update — Dungeon Maker resource 补齐已知缺口
+- 更新:sources/gaming/dungeon-maker-reference/
+- 补齐内容:
+  - 新增 `monster_fusion_recipes.json`(84 条) 和 `room_recipes.json`(580 条),将怪物/房间合成关系拆成图结构
+  - `monsters.json` / `rooms.json` 回填结构化 `fusionFrom` / `fusionTo` / `recipe` / `materialFor`
+  - `skills.json` 通过 Wiki `Template:StringSkill` 补齐技能说明和旧版说明
+  - `status_effects.json` 修正模板误识别,通过 `Template:Status` / `Template:S` 补齐状态 code、名称、说明、备注
+  - 新增 `events` / `rewards` / `boss_battles` / `difficulty_tiers` / `trial_modifiers` / `books` / `torture_tools` 配置
+  - `config_schema.json` 扩展 Recipe、StatusEffect、Event、Reward、BossBattle、Difficulty、Book、TortureTool 结构
+- 仍未完全结构化:技能/状态公式 DSL、事件选项强类型分支、奖励权重、商店价格曲线、难度/Boss 数值公式 AST
+
+## [2026-07-01] ingest — Dungeon Maker 参考资源包入库(gaming)
+- 来源:sources/gaming/dungeon-maker-reference/
+- 新增 resource 目录:
+  - framework.md:游戏框架、系统拆分、配置表建议
+  - config_schema.json:配置 Schema 草案
+  - config/*.json:dark_lords / monsters / heroes / rooms / relics / fate_cards / skills / status_effects / systems
+  - tools/scrape_dungeon_maker_configs.py:配置抓取与生成脚本
+- 新建 2 页:
+  - source-summary:[[dungeon-maker-reference-resource]]
+  - concept:[[dungeon-maker-framework-pattern]]
+- 更新 index.md:gaming 分区新增概念和素材摘要
+- 边界:非官方 Wiki 抽取结果,作为参考开发物料;具体数值和技能公式后续仍需二次清洗
+
 ## [2026-06-16] ingest — 新增 3 篇素材(ai-llm hook 经验 ×2 + gaming 兼容自检 ×1)
 - 来源:sources/ai-llm/hook-usage-log-pipeline、windows-python-hook-stdout-ascii;sources/gaming/高兼容性风险的修改项自检
 - 新建 3 页:
