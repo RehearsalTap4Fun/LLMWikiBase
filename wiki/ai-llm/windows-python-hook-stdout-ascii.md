@@ -6,12 +6,12 @@ source: sources/ai-llm/windows-python-hook-stdout-ascii.md
 date: 2026-06-16
 confidence: high
 tags: [claude-code, hook, windows, 编码, python, 个人经验]
-links: ["[[hook-usage-log-pipeline]]"]
+links: ["[[hook-usage-log-pipeline]]", "[[ai-claude-workflow-lessons]]"]
 ---
 
 # Windows 下 Python hook 输出中文须用 ASCII 转义（素材摘要）
 
-个人经验笔记:在 Windows + git-bash 写 Claude Code hook 时踩到的编码坑。**任何**通过 stdout 输出中文的 hook 都适用。相关实现见 [[hook-usage-log-pipeline]]。
+个人经验笔记:在 Windows + git-bash 写 Claude Code hook 时踩到的编码坑。**任何**通过 stdout 输出中文的 hook 都适用。相关实现见 [[hook-usage-log-pipeline]],后续在 [[ai-claude-workflow-lessons]] 中也扩展到中文 xlsx / xmind 解析流程。
 
 ## 现象
 
