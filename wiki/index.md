@@ -6,19 +6,40 @@
 
 **综合**
 - [[k1-monthly-overview]] — K1 全年经营快照(2025-01至2026-05)：规模持续收缩、靠付费深度撑收入。
+- [[k1-activity-monetization-2026h1]] — 2026H1 活动与付费综合判断：节日仍有真增量，但付费价值感、L1/L2 DAC 下滑和新玩家单价才是底盘风险。
+- [[k1-live-activity-patterns-2026h1]] — K1 2026H1 活动机制归纳：主题入口、通行证、商店、转盘/棋盘、排行和充值触点是近期活动复用骨架。
+
+**项目组 wiki 口径**
+- [[k1-project-knowledge-map]] — Confluence `K1 游戏知识` 页面树盘点：活动、FAQ、付费、KVK 是主干，`需删除` 和旧/过期页默认排除。
+- [[k1-cs-faq-current]] — K1 客服 FAQ 当前口径：守卫币、领主装备、联盟跨服召集、新玩家保护等可答复边界。
+- [[k1-kvk-burning-expedition]] — K1 燃烧的远征/KVK 口径：名称、联盟规则、安全区、女神系统和客服答复边界。
+- [[k1-paid-products-current]] — K1 付费产品当前口径：守卫币、精英卡、成长基金、商会补给、首充等产品边界。
+
+**素材摘要**
+- [[work-weekly-2026-06-08]] — 2026-06-08 至 06-14 周报：世界杯主题活动、巨龙培育、周年庆验收与 KVK 后续目标。
+- [[work-dingtalk-logs-2026-h1]] — 2026H1 钉钉日报归档：116 条日志串起联盟对决、SVS/KVK、巨龙培育、世界杯主题活动正式配置、手感调优与 AI 协作。
+- [[k1-satisfaction-2026-h1]] — K1 2026H1 满意度母报告：付费体验最低，礼包性价比与付费活动是最低三级指标。
+- [[k1-payment-experience-decline-2026-h1]] — 2026H1 付费体验下降归因：不满集中在“花钱不值”，俄语区、新玩家第一印象和边付边骂人群风险突出。
+- [[k1-wilderness-hunting-return-analysis]] — 荒野狩猎回归分析：活动可拉 PVE 与在线，但付费率/ARPPU 无系统性抬升。
+- [[k1-no-holiday-event-revenue-forecast]] — 不做节日活动流水推算：未来 6 个月净少赚约 $5.22M，但中老玩家 DAC 下滑是更长期风险。
 
 **指标(concept)**
-- [[k1-revenue-arpc]] — 月流水与 ARPC：17 月趋势，从 1051 万降至 666 万低位。
-- [[k1-payment-structure]] — 付费结构：礼包大类、Rlevel 贡献、代币、退款全年趋势。
+- [[k1-revenue-arpc]] — 月流水与 ARPC：17 月趋势，从 1051 万降至 666 万低位；补节日活动流水推算入口。
+- [[k1-payment-structure]] — 付费结构：礼包大类、Rlevel 贡献、代币、退款全年趋势；补付费体验满意度风险。
 - [[k1-edau]] — EDAU：从 15.1 万收缩至 5.9 万，高度依赖买量。
-- [[k1-dac]] — DAC：从 6.8 万降至 3.8 万；1000刀+超R 稳定在 ~600 人。
-- [[k1-new-player-retention-roi]] — 新玩家留存与回本：7日ROI 走弱，回本波动大。
+- [[k1-dac]] — DAC：从 6.8 万降至 3.8 万；补 open_udid 设备口径 DAC 与 L1/L2 cohort 风险。
+- [[k1-new-player-retention-roi]] — 新玩家留存与回本：7日ROI 走弱，回本波动大；补新玩家付费价值感与单价下滑。
 - [[k1-progression-lines]] — 投放线进度：超R 科研满进度 >90%，成长线趋饱和。
 
 ## gaming — 游戏行业研究
 
+**项目/方案**
+- [[k1-new-server-map-plan]] — K1 新服大地图重构策划案 v0.6：用 KVK 方格/堡垒/王座骨架重构新服原服地图,21 天赛季节奏对标 KVK 但省 7 天匹配。
+- [k1-new-server-map-brief.html](gaming/k1-new-server-map-brief.html) — 上述策划案的非开发职能速览页(单文件 HTML,含地图 SVG 示意图与 FAQ)。
+
 **概念/规范**
 - [[高兼容性风险修改项自检]] — K1 开发规范:哪些改动有新旧版本兼容风险,提交前必查的 8 项清单。
+- [[双模式难度故意不对齐]] — 多模式并行系统设计模式：偏向 + 切换零代价 = 玩家自学场景-模式映射。
 
 ## ai-llm — AI/LLM 学习
 
@@ -31,6 +52,7 @@
 
 **综合**
 - [[llm-wiki-vs-rag]] — 规模决定架构:个人规模为何选纯 wiki 而非 RAG(5万–10万 token 阈值)。
+- [[ai-claude-workflow-lessons]] — Claude Code 工作流经验:brainstorming 汇总、spec grounding、协议 lint、三层审核与 xlsx/xmind 工作流护栏。
 
 **素材摘要**
 - [[karpathy-llm-wiki]] — Karpathy gist:模式理念源头。
@@ -41,3 +63,4 @@
 **个人经验**
 - [[hook-usage-log-pipeline]] — 用 Stop hook 在对话超阈值时自动记日志 + 唤醒总结,沉淀 AI 使用经验。
 - [[windows-python-hook-stdout-ascii]] — Windows 下 Python hook 输出中文须用 ASCII 转义,否则 GBK/UTF-8 错位乱码。
+- [[dingtalk-md-escape-diff]] — 钉钉文档与本地 md 双向同步的 GFM 转义差异及反转义脚本。

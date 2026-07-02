@@ -6,7 +6,7 @@ source: sources/ai-llm/hook-usage-log-pipeline.md
 date: 2026-06-16
 confidence: high
 tags: [claude-code, hook, 工作流, 自动化, 个人经验, 知识库]
-links: ["[[windows-python-hook-stdout-ascii]]", "[[llm-wiki-pattern]]"]
+links: ["[[windows-python-hook-stdout-ascii]]", "[[llm-wiki-pattern]]", "[[ai-claude-workflow-lessons]]"]
 ---
 
 # AI 使用日志自动化管线（素材摘要）
