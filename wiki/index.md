@@ -11,13 +11,15 @@
 
 **项目组 wiki 口径**
 - [[k1-project-knowledge-map]] — Confluence `K1 游戏知识` 页面树盘点：活动、FAQ、付费、KVK 是主干，`需删除` 和旧/过期页默认排除。
+- [[k1-confluence-routing]] — 未摄取内容路由表：本地查不到时按分支去 Confluence 找，跟踪各分支摄取状态。
 - [[k1-cs-faq-current]] — K1 客服 FAQ 当前口径：守卫币、领主装备、联盟跨服召集、新玩家保护等可答复边界。
 - [[k1-kvk-burning-expedition]] — K1 燃烧的远征/KVK 口径：名称、联盟规则、安全区、女神系统和客服答复边界。
 - [[k1-paid-products-current]] — K1 付费产品当前口径：守卫币、精英卡、成长基金、商会补给、首充等产品边界。
 
 **素材摘要**
 - [[work-weekly-2026-06-08]] — 2026-06-08 至 06-14 周报：世界杯主题活动、巨龙培育、周年庆验收与 KVK 后续目标。
-- [[work-dingtalk-logs-2026-h1]] — 2026H1 钉钉日报归档：116 条日志串起联盟对决、SVS/KVK、巨龙培育、世界杯主题活动正式配置、手感调优与 AI 协作。
+- [[work-dingtalk-logs-2026-h1]] — 2026H1 钉钉日报归档：118 条日志串起联盟对决、SVS/KVK、巨龙培育、世界杯主题活动正式配置、手感调优、双操作模式与 AI 协作。
+- [[work-dingtalk-logs-2026-h2]] — 2026H2 钉钉日报归档种子页：07-01 承接世界杯主体活动引导、AI 难度调整与双操作模式验收。
 - [[k1-satisfaction-2026-h1]] — K1 2026H1 满意度母报告：付费体验最低，礼包性价比与付费活动是最低三级指标。
 - [[k1-payment-experience-decline-2026-h1]] — 2026H1 付费体验下降归因：不满集中在“花钱不值”，俄语区、新玩家第一印象和边付边骂人群风险突出。
 - [[k1-wilderness-hunting-return-analysis]] — 荒野狩猎回归分析：活动可拉 PVE 与在线，但付费率/ARPPU 无系统性抬升。
@@ -35,7 +37,9 @@
 
 **项目/方案**
 - [[k1-new-server-map-plan]] — K1 新服大地图重构策划案 v0.6：用 KVK 方格/堡垒/王座骨架重构新服原服地图,21 天赛季节奏对标 KVK 但省 7 天匹配。
-- [k1-new-server-map-brief.html](gaming/k1-new-server-map-brief.html) — 上述策划案的非开发职能速览页(单文件 HTML,含地图 SVG 示意图与 FAQ)。
+- [[k1-new-map-payment-growth-attribution]] — D23 新地图回归付费成长系数拆解:D30~D60 最大涨幅全靠 KVK 从 D28 推迟到 D43,首周涨幅与地图机制无关(素材/内容驱动)。
+- [k1-new-server-map-brief.html](../sources/gaming/k1-new-server-map/k1-new-server-map-brief.html) — 上述策划案的非开发职能速览页(单文件 HTML,含地图 SVG 示意图与 FAQ;分发版:图片已内嵌 base64,1.4MB,双击可开)。
+- [k1-new-server-map-brief.template.html](../sources/gaming/k1-new-server-map/k1-new-server-map-brief.template.html) — 上一速览页的编辑模板(引用外部图片,便于修改;修改后可用 Python 一键内嵌图片再另存分发版)。
 
 **概念/规范**
 - [[dungeon-maker-framework-pattern]] — Dungeon Maker 式地牢经营框架:每日卡牌路径 + 地牢建设 + 自动战斗 + 局外解锁。
@@ -56,7 +60,7 @@
 
 **综合**
 - [[llm-wiki-vs-rag]] — 规模决定架构:个人规模为何选纯 wiki 而非 RAG(5万–10万 token 阈值)。
-- [[ai-claude-workflow-lessons]] — Claude Code 工作流经验:brainstorming 汇总、spec grounding、协议 lint、三层审核与 xlsx/xmind 工作流护栏。
+- [[ai-claude-workflow-lessons]] — AI 工作流经验:Claude/Codex 配置工程、spec grounding、审查线程、开发资产四件套与 clean checkout 护栏。
 
 **素材摘要**
 - [[karpathy-llm-wiki]] — Karpathy gist:模式理念源头。
@@ -67,4 +71,5 @@
 **个人经验**
 - [[hook-usage-log-pipeline]] — 用 Stop hook 在对话超阈值时自动记日志 + 唤醒总结,沉淀 AI 使用经验。
 - [[windows-python-hook-stdout-ascii]] — Windows 下 Python hook 输出中文须用 ASCII 转义,否则 GBK/UTF-8 错位乱码。
+- [[windows-python3-store-stub-trap]] — Windows python3 命令指向 Store 空壳,与 pip 装包环境不一致,需用完整路径调用真实 Python。
 - [[dingtalk-md-escape-diff]] — 钉钉文档与本地 md 双向同步的 GFM 转义差异及反转义脚本。

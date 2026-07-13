@@ -1,17 +1,17 @@
 ---
-title: Claude Code 工作流经验沉淀(2026-06)
+title: AI 工作流经验沉淀(2026-06~07)
 type: synthesis
 domain: ai-llm
-source: sources/ai-llm/hook-fires-2026-06.md
-date: 2026-06-30
+source: sources/ai-llm/hook-fires-2026-06.md; sources/ai-llm/2026-06-30-ai-usage-review.md; sources/ai-llm/2026-07-01-ai-usage-review.md
+date: 2026-07-03
 confidence: medium
-tags: [claude-code, 工作流, hook, 个人经验, brainstorming, plan, subagent, 自动化, ingest, lint, 协议, 配置工程, 设计意图, xlsx, xmind, 编码, 反向同步, 真相源, 报告成功前自检, 外部installer, 最小覆盖]
+tags: [claude-code, codex, 工作流, hook, 个人经验, brainstorming, plan, subagent, 自动化, ingest, lint, 协议, 配置工程, 设计意图, xlsx, xmind, 编码, 反向同步, 真相源, 报告成功前自检, 外部installer, 最小覆盖, code-review, spec-compliance, clean-checkout, 开发资产]
 links: ["[[hook-usage-log-pipeline]]", "[[windows-python-hook-stdout-ascii]]", "[[llm-wiki-pattern]]"]
 ---
 
-# Claude Code 工作流经验沉淀(2026-06)
+# AI 工作流经验沉淀(2026-06~07)
 
-> 综合自 [[hook-usage-log-pipeline]] 在 2026-06 月的 15 段自动总结(世界杯主题活动配置工具、坐标协议、配置审核、中文策划素材解析与 xlsx 同步会话)。这是「LLM 当簿记员」思路在**个人元工作流**上的落地——hook 自动产出流水日志,人(+ LLM)做阶段性提炼。confidence 标 medium 是因为主要来自同一项目簇,还未跨多个项目复现。
+> 综合自 [[hook-usage-log-pipeline]] 在 2026-06 月的自动总结,以及 2026-06-30/2026-07-01 两篇 Codex 日复盘。主题从 Claude Code 配置工程扩展到 Codex 实施/审查协作,仍属于「LLM 当簿记员」在个人元工作流上的落地。confidence 标 medium 是因为主要来自同一批项目簇,还未跨多个项目复现。
 
 ## 三条最稳的原则
 
@@ -138,12 +138,6 @@ links: ["[[hook-usage-log-pipeline]]", "[[windows-python-hook-stdout-ascii]]", "
 - 「协议 lint / TBD 状态机 / 三层审核 / 派生产物保护」适合长期维护的配置工程;一次性小脚本不一定值得建设完整治理层。
 - 「全局参数变更默认语义迁移」不等于每次都要重做全部数据,而是要求先把影响面摆出来,再决定缩放、重设计或保留。
 
-## 与本知识库其他页的关系
-
-- 元方法论源头 → [[hook-usage-log-pipeline]](让对话过程本身沉淀为素材的管线)、[[llm-wiki-pattern]](LLM 当簿记员)。
-- 同域技术 recipe → [[windows-python-hook-stdout-ascii]](hook 输出中文转义;中文 xlsx/xmind 解析也复用同一类 Windows 编码经验)。
-- 后续若新月份日志暴露新摩擦或推翻上述某条,直接更新本页并刷新 date;只有出现独立主题簇时再另开 synthesis 页。
-
 ## 2026-06-27 之后的补充
 
 06-29 一天连爆 5 段总结(Agent Reach 安装 + slice-editor 反导 4 段),暴露 4 条新原则,继续挂在本页而非另开:
@@ -198,3 +192,45 @@ links: ["[[hook-usage-log-pipeline]]", "[[windows-python-hook-stdout-ascii]]", "
 ### 与 §4「rolling source」的关系
 
 这 4 条都发生在同一天、同一个项目(MindToDoc 世界杯活动),说明 §4 提到的「rolling source 判类型」思路对 hook-fires 这类流水日志仍适用——本轮把新增部分作为章节挂到已有 synthesis 页(路径 B),而不是每天新建页面。
+
+## 2026-06-30 至 07-01 Codex 日复盘补充
+
+两篇日复盘把经验从配置生成扩展到"外部参考资料转开发资产"和"实施/审查分工"。
+
+### 17. 参考资料整理要交付本地资产四件套
+
+**痛点**:把参考 Wiki 整理成说明文档、网页链接或图谱,对后续开发帮助有限;真正可复用的是仓库里能继续跑、继续校验的资产。
+
+**做法**:参考产品/Wiki 拆解默认交付四件套:可复跑抓取脚本、本地结构化 JSON、原始 wikitext/缓存、人读 README,再加最小解析校验。先用参考站点的导航结构拆系统层,再把每层映射为开发侧可配置的数据模型。
+
+**为什么**:本地结构化产物能直接进入开发流程,原始缓存和脚本保证以后可以修 parser 或重跑,README 让人理解设计边界。只保留总结文本会把一次性理解和可复用资产混在一起。
+
+### 18. 半结构化站点抓取先做小样验证
+
+**痛点**:首个分类页能枚举,不代表其他栏目也走同一模板。直接全量抓取会在英雄、房间、技能等异构栏目中段返工。
+
+**做法**:批量抓取前先验证 1-2 条栏目路径,确认枚举、模板识别和字段解析都稳定;发现栏目结构不一致时,及时切到模板识别或回退策略。
+
+**为什么**:半结构化 Wiki 的页面组织经常按内容类型漂移。小样验证能把 parser 假设暴露在前面,避免把错误推广到全站。
+
+### 19. 实施线程和审查线程分开,审查维度也要拆开
+
+**痛点**:同一个线程边实现边 review,容易把规格问题、代码质量问题和交付问题混成一轮泛泛检查。
+
+**做法**:主线程负责实现和验证;只读审查线程分别看 spec compliance、code quality、re-review after fix。审查 prompt 要限定检查维度,并要求 findings 带文件/行号和 residual risks。
+
+**为什么**:窄目标审查更容易发现不同类别的问题。一次看规格能抓模板计数冲突,一次看代码质量能抓不可达路径和未跟踪资源,定向复审只验证上轮 finding 是否真的修掉。
+
+### 20. 评审发现要尽快变成测试或不变量
+
+**痛点**:审查文字只能发现一次;如果不编码成测试,同类问题会在下轮数据或素材变更时回来。
+
+**做法**:把评审中稳定成立的约束写成测试或检查项,例如引用都能解析、静态资源来自已跟踪的 `public/assets` 子集、hero placement 从 spawn 可达、内容表路径在 clean checkout 下存在。
+
+**为什么**:clean checkout 视角能抓住"本机有未跟踪素材,部署/新拉仓库没有"这类交付缺口。测试把一次发现变成持续护栏,比靠 review 记忆稳。
+
+## 与本知识库其他页的关系
+
+- 元方法论源头 → [[hook-usage-log-pipeline]](让对话过程本身沉淀为素材的管线)、[[llm-wiki-pattern]](LLM 当簿记员)。
+- 同域技术 recipe → [[windows-python-hook-stdout-ascii]](hook 输出中文转义;中文 xlsx/xmind 解析也复用同一类 Windows 编码经验)。
+- 本页继续承接滚动日志和日复盘中的工作流级经验;只有出现独立主题簇时再另开 synthesis 页。

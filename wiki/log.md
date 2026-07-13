@@ -2,6 +2,87 @@
 
 > 追加式、按时间倒序。条目格式可 grep：`## [YYYY-MM-DD] 动作 — 摘要`
 
+## [2026-07-08] update — 控制台 GBK 显示乱码适用范围扩展
+- 来源:对话(执行"用 PyMuPDF 重建双栏 PDF 排序"任务时,同一次任务里连续 3 次误判控制台中文乱码为数据错误)
+- 更新 [[windows-python-hook-stdout-ascii]]:新增"扩展"小节,把适用范围从"Python hook stdout"扩大到"任何控制台 print/Write-Output 中文场景",补充排查方法(写文件+UTF-8读取验证 vs 直接断定数据错误)
+- 与 [[windows-python3-store-stub-trap]] 互链并注明区分点(编码显示问题 vs PATH解析问题,根因和解法都不同)
+
+## [2026-07-08] ingest — Windows python3 环境陷阱
+- 来源:对话(处理 UNICEF 0-6岁儿童发展里程碑 PDF 时,pip 装 pymupdf 后 python3 import 失败排查过程)
+- 新建 1 页:[[windows-python3-store-stub-trap]](concept,confidence: high)
+  - 此机器 python3 命令指向 Microsoft Store 空壳可执行文件,与 pip 实际安装的 Python 环境不一致
+  - 已独立触发两次(watch skill 依赖安装 + 本次 PyMuPDF 安装),记录排查方法和完整路径调用解法
+  - index.md 同步加入索引行,与已有 [[windows-python-hook-stdout-ascii]] 同属 Windows 环境陷阱系列但主题不同,未合并
+
+## [2026-07-06] ingest — D23 新地图回归付费成长系数拆解
+- 来源:`sources/gaming/k1-new-server-map/D23新地图回归-付费成长系数拆解.html`(数据分析部,2026-07-02;R Markdown/knitr 渲染报告,4.8MB,含大量 plotly/htmlwidget 交互图表,正文用 awk 跳过 base64/超长行提取)
+- 新建 1 页:[[k1-new-map-payment-growth-attribution]](source-summary,confidence: high)
+  - 6 段付费成长系数对比 + 3 个归因问题(首周涨幅系素材/内容驱动与地图无关、中期涨幅素材与地图效应各半可分离、D30~D60 最大涨幅全靠新地图把 KVK 从 D28 推迟到 D43)
+  - 新增问题5:4/25 联盟创建门槛调整,表面差距系投放结构切换假象,同国家×渠道复核后对高 R 留存仍有独立正效应
+  - 记录整体口径在零付费占 99% 场景下的留存假象陷阱,供后续付费类分析归因方法复用
+- 更新 2 页互链:[[k1-new-server-map-plan]](补入口指向效果验证页)、wiki/index.md(gaming 分区新增 1 行)
+- 已知限制:原文 plotly 交互图表(boxplot/留存曲线/礼包对比)未摄取,仅保留文字结论与关键数字,需查图表请回原始 HTML
+
+## [2026-07-06] ingest — 路由表新增逐页路由 + 修正联盟对决易混淆提醒
+- 来源:用户提供 Confluence 页面 URL(pageId 200548379,联盟争霸赛活动),WebFetch 核实后发现该页挂在 K1活动分支的 K1日常活动子分类,不在此前判空的"K1 联盟对决"分支
+- 更新 1 页:[[k1-confluence-routing]]
+  - 新增「已验证的具体页面(逐页路由)」表,登记 pageId 200548379,记录四阶段机制(报名/匹配/争霸/展示)、夺旗判定、积分规则(胜3负0平1)、参战战力计入范围;道具ID表和具体奖励数值不摄取,标注需回源
+  - 修正 K1活动分支行:补充"联盟对战活动挂在本分支"提示
+  - 修正 K1 联盟对决分支行:补充"易混淆提醒",防止下次查询误判分支
+  - 已知限制补一条:逐页路由表会随查询次数累积,条目多后再拆分
+- 未新建 concept 页:本次仅登记路由和已验证的机制摘要,联盟争霸赛完整规则页(含奖励/段位结算)留待用户明确要深入摄取时再建
+- 边界:页面最后修改 2025-09-19,超 9 个月未更新,confidence 定为路由参考不代表当前版本必然准确
+
+## [2026-07-06] ingest — 新建 K1 Confluence 未摄取内容路由表
+- 来源:用户反馈 K1 相关 Confluence 内容体量过大,本地仅摄取最近一段时间/第一批内容,未摄取部分需要有路由入口
+- 新建 1 页:[[k1-confluence-routing]](reference,confidence: high)
+  - 按 [[k1-project-knowledge-map]] 已盘点的 5 大分支(K1活动/K1常见问题/K1付费活动/需删除/K1联盟对决)列摄取状态、已摄取到哪些本地页、未摄取部分建议
+  - 补充跨分支的 KVK/燃烧的远征专题页 pageId(150440788/194473719/157449650)
+  - pageId 均取自已入库页面 frontmatter 的 source 字段,不编造未摄取子页的具体 pageId
+  - 使用方式:本地查不到时先查本表定位分支入口,查到有长期价值的新内容再按 Ingest 流程写入并回填摄取状态
+- 更新 2 页互链:[[k1-project-knowledge-map]](links 补入口 + 关系说明)、wiki/index.md(work 分区新增 1 行)
+- 边界:本表只到一级分支粒度,不逐一列 842 个子页;二级仅补已在其他页 source 字段出现过的 pageId
+
+## [2026-07-03] ingest — 写入每日巡检建议(H1 日志收口 + AI 经验补充)
+- 来源:
+  - `sources/work/dingtalk-logs-2026/dingtalk-logs-2026.md`(2026-01-01 至 2026-07-01,119 条;本次 H1 只收口到 06-30/118 条)
+  - `sources/ai-llm/2026-06-30-ai-usage-review.md`
+  - `sources/ai-llm/2026-07-01-ai-usage-review.md`
+- 更新 1 页:[[work-dingtalk-logs-2026-h1]]
+  - 范围从 2026-06-26/116 条扩到 2026-06-30/118 条
+  - 补 06-29 世界杯主体流程跑通、可视化网页编辑器微调、常驻操作辅助线、带球摆脱规则、切片/关卡/合同配置结构调整
+  - 补 06-30 双操作模式切换、操作锁定、同步与延迟触发类型、镜像切片模板降低重复度
+- 新建 1 页:[[work-dingtalk-logs-2026-h2]]
+  - 作为 2026H2 日报种子页,仅覆盖 2026-07-01 单条日志,confidence 标 low
+  - 记录世界杯主体活动引导步骤开发、AI 难度调整、双操作模式验收
+- 更新 1 页:[[ai-claude-workflow-lessons]]
+  - 标题扩展为 AI 工作流经验沉淀(2026-06~07),source 补 2 篇 Codex 日复盘
+  - 新增参考 Wiki 到本地开发资产四件套、半结构化站点小样验证、实施/审查线程拆分、clean checkout 资产检查等 4 条经验
+- 更新 wiki/index.md:work 分区补 H2 种子页,ai-llm 分区更新综合页摘要
+- 未写入:`sources/ai-llm/hook-fires-2026-07.md` 的两个 TODO_FILL 空占位
+
+## [2026-07-02] refactor — 速览页从 wiki/ 迁移到 sources/gaming/
+- 来源:AGENTS.md 规范"wiki/ = markdown 知识页面, sources/ = 原始素材",HTML 速览页和图片资产不属 wiki/ 范畴
+- 迁移路径:
+  - `wiki/gaming/k1-new-server-map-brief.html` → `sources/gaming/k1-new-server-map/k1-new-server-map-brief.html`
+  - `wiki/gaming/k1-new-server-map-brief.template.html` → `sources/gaming/k1-new-server-map/k1-new-server-map-brief.template.html`
+  - `wiki/gaming/assets/kvk-map-bg.png` → `sources/gaming/k1-new-server-map/assets/kvk-map-bg.png`
+  - 清理空目录 `wiki/gaming/assets/`
+- 更新 wiki/index.md:两条速览页链接改为相对路径 `../sources/gaming/k1-new-server-map/*.html`
+- 策划案 markdown 本身仍在 `wiki/gaming/k1-new-server-map-plan.md`(是 markdown 知识页,符合 wiki/ 定义)
+- 之前 log 条目提到的 `wiki/gaming/*.html` 路径反映的是当时状态,不追溯修改
+
+## [2026-07-02] ingest — 速览页图片 base64 内嵌 + 分离编辑模板
+- 来源:用户要求速览页可直接分发他人(单文件自包含),同时本地保留可编辑的版本
+- 更新 1 页:`wiki/gaming/k1-new-server-map-brief.html`
+  - KVK 底图 PNG (1MB) 通过 Python base64 编码后内嵌到 `<img src="data:image/png;base64,...">`
+  - HTML 文件大小 28KB → 1.4MB,单文件自包含,无外部依赖
+  - 圈层渐进叠色:中间圈(浅冷灰蓝 opacity 0.18)、中心圈(蓝紫 0.24)、王座核心(暗紫红 0.30)3 层同心圆叠色,越靠中心越浓,配套图例新增 3 条圈层说明
+- 新增 1 页:`wiki/gaming/k1-new-server-map-brief.template.html`(24KB)
+  - 引用外部图片路径 `assets/kvk-map-bg.png`,供本地编辑修改文案用
+  - 顶部标注"模板 · 未内嵌图片",避免误分发
+- 更新 wiki/index.md:速览页条目拆分为"分发版(base64 内嵌)"+"编辑模板"两行
+
 ## [2026-07-02] ingest — 精简 K1 新服大地图策划案到 v0.6(移除工作量估计)
 - 来源:用户要求策划案与速览页均不预估开发时间,留给开发人员拿到落地策划案后自行评估
 - 更新 1 页:[[k1-new-server-map-plan]](版本 v0.5 → v0.6 精简稿)

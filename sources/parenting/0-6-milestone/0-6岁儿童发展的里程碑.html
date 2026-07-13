@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>0～6岁儿童发展的里程碑</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --ink: #1a1a1a;
+    --ink-soft: #555;
+    --line: #e5e5e2;
+    --accent: #3a6ea5;
+    --accent-soft: #e8f0f8;
+    --highlight: #f2e79a;
+    --danger: #b8321a;
+    --danger-soft: #fbeae6;
+    --caution: #a66b00;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .layout { display: flex; max-width: 1180px; margin: 0 auto; }
+  nav.toc {
+    width: 200px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 32px 16px 40px 24px;
+    border-right: 1px solid var(--line);
+  }
+  nav.toc .toc-title { font-size: 12px; letter-spacing: 1px; color: var(--ink-soft); margin-bottom: 12px; text-transform: uppercase; }
+  nav.toc ul { list-style: none; margin: 0; padding: 0; }
+  nav.toc li { margin-bottom: 2px; }
+  nav.toc a { display: block; padding: 6px 10px; border-radius: 4px; color: var(--ink-soft); text-decoration: none; font-size: 13.5px; }
+  nav.toc a:hover { background: var(--accent-soft); color: var(--accent); }
+  nav.toc .toc-divider { border-top: 1px solid var(--line); margin: 10px 6px; }
+
+  main { flex: 1; min-width: 0; padding: 40px 40px 100px; max-width: 900px; }
+  header { padding: 8px 0 32px; border-bottom: 1px solid var(--line); margin-bottom: 40px; }
+  header .tag { display: inline-block; background: var(--accent-soft); color: var(--accent); padding: 4px 10px; border-radius: 3px; font-size: 12px; letter-spacing: 1px; margin-bottom: 12px; }
+  h1 { font-size: 30px; margin: 0 0 10px; letter-spacing: -0.5px; }
+  header .meta { color: var(--ink-soft); font-size: 14px; margin: 4px 0 0; }
+  header .audience { margin-top: 16px; padding: 12px 16px; background: var(--surface); border-left: 3px solid var(--accent); color: var(--ink-soft); font-size: 14px; }
+
+  h2 { font-size: 22px; margin: 56px 0 4px; scroll-margin-top: 20px; }
+  h2 .age-range { color: var(--accent); }
+
+  .callout { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 12px 16px; margin: 14px 0; font-size: 14px; color: #1d3a56; }
+  .callout b { color: var(--accent); }
+
+  .note-fix { background: #f0f0f0; border-left: 3px solid var(--ink-soft); padding: 10px 14px; margin: 10px 0; font-size: 13px; color: var(--ink-soft); border-radius: 3px; }
+
+  .milestone-timeline { position: relative; padding-left: 32px; margin: 20px 0 40px; }
+  .milestone-timeline::before { content: ''; position: absolute; left: 9px; top: 8px; bottom: 8px; width: 2px; background: var(--line); }
+
+  .stage { position: relative; margin-bottom: 48px; scroll-margin-top: 20px; }
+  .stage::before { content: ''; position: absolute; left: -27px; top: 4px; width: 14px; height: 14px; background: var(--accent); border-radius: 50%; border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--accent); }
+  .stage-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+  .stage-header h2 { margin: 0; }
+
+  .milestone-card { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 18px 22px; margin-bottom: 12px; }
+  .milestone-card ul { margin: 0; padding-left: 20px; }
+  .milestone-card li { margin-bottom: 7px; }
+  .milestone-card li::marker { color: var(--accent); }
+
+  .missing-text { background: #eee; color: #888; padding: 1px 5px; border-radius: 2px; font-size: 12px; font-style: italic; }
+
+  .warning-box { background: var(--danger-soft); border: 1px solid #ecc; border-radius: 4px; padding: 16px 20px; margin-top: 14px; }
+  .warning-box h4 { color: var(--danger); margin: 0 0 10px; font-size: 14.5px; display: flex; align-items: center; gap: 6px; }
+  .warning-box h4::before { content: '⚠'; }
+  .warning-box ul { margin: 0; padding-left: 20px; }
+  .warning-box li { margin-bottom: 6px; font-size: 14px; color: #6b1f10; }
+  .warning-box li::marker { color: var(--danger); }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; background: var(--surface); font-size: 13.5px; }
+  th { background: #f0efec; text-align: center; padding: 9px 8px; border-bottom: 2px solid var(--line); font-weight: 600; white-space: nowrap; }
+  td { padding: 8px; border-bottom: 1px solid var(--line); text-align: center; }
+  tr:last-child td { border-bottom: none; }
+  .table-wrap { overflow-x: auto; }
+  td:first-child, th:first-child { background: #f5f4f1; font-weight: 600; position: sticky; left: 0; }
+
+  .risk-note { background: #fdf8ec; border-left: 3px solid var(--caution); padding: 10px 14px; margin: 10px 0; font-size: 13px; color: #6a5300; border-radius: 3px; }
+
+  footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-soft); }
+  footer code { background: #f0efec; padding: 2px 6px; border-radius: 2px; font-size: 12px; }
+
+  .back-top { position: fixed; right: 28px; bottom: 28px; background: var(--accent); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: none; }
+  .back-top.show { display: block; }
+
+  @media (max-width: 900px) {
+    nav.toc { display: none; }
+    main { padding: 28px 20px 80px; max-width: 100%; }
+    .milestone-timeline { padding-left: 24px; }
+    .stage::before { left: -20px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc">
+  <div class="toc-title">目录</div>
+  <ul>
+    <li><a href="#s0">0～1个月</a></li>
+    <li><a href="#s0b">1～3个月</a></li>
+    <li><a href="#s1">4～6个月</a></li>
+    <li><a href="#s1b">7～9个月</a></li>
+    <li><a href="#s2">10～12个月</a></li>
+    <li><a href="#s3">1岁～1岁半</a></li>
+    <li><a href="#s3b">1岁半～2岁</a></li>
+    <li><a href="#s4">2岁～3岁</a></li>
+    <li><a href="#s4b">3岁～4岁</a></li>
+    <li><a href="#s5">4岁～5岁</a></li>
+    <li><a href="#s6">5岁～6岁</a></li>
+    <li class="toc-divider"></li>
+    <li><a href="#growth-table">身高体重参考表</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<header>
+  <span class="tag">中华人民共和国教育部 · 2011年9月</span>
+  <h1>0～6岁儿童发展的里程碑</h1>
+  <p class="meta">Developmental Milestone for Children 0-6 Years · 联合国儿童基金会(unicef.cn)转载版</p>
+  <p class="audience">本页按年龄段整理发展条目与发展警示，方便家庭养育人快速对照孩子的发展情况。原始来源为PDF，经Word提取整理。</p>
+</header>
+
+<div class="milestone-timeline">
+
+<div class="stage" id="s0">
+  <div class="stage-header"><h2>0<span class="age-range">～1个月</span></h2></div>
+  <div class="milestone-card">
+    <ul>
+      <li>头可以从一边转向另一边</li>
+      <li>醒着时，目光能追随距眼睛20厘米左右的物体</li>
+      <li>在新生儿身边摇响铃，孩子的手脚会向中间抱紧</li>
+      <li>与陌生人的声音相比，婴儿更喜欢听母亲的声音</li>
+      <li>能分辨味道，喜欢甜味</li>
+      <li>对气味有感觉，当闻到难闻的气味时会转开头</li>
+      <li>当听到轻音乐、人的说话声时会安静下来</li>
+      <li>会微笑，会模仿人的表情</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>对大的声音没有反应</li>
+      <li>对强烈的光线没有反应</li>
+      <li>不能轻松地吸吮或吞咽</li>
+      <li>身高、体重不增加</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s0b">
+  <div class="stage-header"><h2>1<span class="age-range">～3个月</span></h2></div>
+  <div class="note-fix">经用户提供原图补充：此前 Word 提取的文本中完全没有这一分段，是彻底缺失的一整段（非拆分/合并错误，是原文本身在提取时丢失，未留下任何痕迹）。</div>
+  <div class="milestone-card">
+    <ul>
+      <li>俯卧时能抬头，抱坐时头稳定</li>
+      <li>能把小手放进嘴里，能手握手</li>
+      <li>喜欢看妈妈的脸，看到妈妈就高兴</li>
+      <li>眼睛盯着东西看</li>
+      <li>会笑出声，会叫。能应答性发声</li>
+      <li>能以不同的哭声表达不同的需要</li>
+      <li>喜欢让熟悉的人抱，吃奶时发出高兴的声音</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>孩子的身高、体重和头围不能逐渐增加</li>
+      <li>不能对别人微笑</li>
+      <li>两只眼睛不能同时跟随移动的物体</li>
+      <li>不能转头找到发出声音的来源</li>
+      <li>抱坐时，头不能稳定</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s1">
+  <div class="stage-header"><h2>4<span class="age-range">～6个月</span></h2></div>
+  <div class="note-fix">经用户提供原图核实：此前遗漏3条发展条目，且"发展警示"内容完全错误（误用了"0～1个月"分段的警示内容），现已全部修正。</div>
+  <div class="milestone-card">
+    <ul>
+      <li>能翻身，靠着东西能坐或能独坐</li>
+      <li>会紧握铃铛，主动拿玩具，拿着东西就放嘴里咬</li>
+      <li>玩具能在两只手间交换</li>
+      <li>喜欢玩脚和脚指头</li>
+      <li>喜欢看颜色鲜艳的东西，会盯着移动的物体看</li>
+      <li>会大声笑，会自己发出"o""a"等声音，喜欢别人跟他说话</li>
+      <li>开始认生，认识亲近的人，见生人就哭</li>
+      <li>会故意扔摔东西</li>
+      <li>喜欢与大人玩"藏猫猫"游戏</li>
+      <li>对周围各种东西都感兴趣</li>
+      <li>能区别别人说话的口气，受到批评会哭</li>
+      <li>有明显的害怕、焦虑、哭闹等反应</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>不会用手抓东西</li>
+      <li>体重、身高不能逐渐增长</li>
+      <li>不会翻身</li>
+      <li>不会笑</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s1b">
+  <div class="stage-header"><h2>7<span class="age-range">～9个月</span></h2></div>
+  <div class="note-fix">经用户提供原图补充：此前 Word 提取的文本中完全没有这一分段，是彻底缺失的一整段（与"1～3个月"同类问题，已出现2次，判定为系统性风险）。</div>
+  <div class="milestone-card">
+    <ul>
+      <li>能自己坐，扶着大人或床沿能站立，扶着大人的手能走几步</li>
+      <li>会爬</li>
+      <li>能用一个玩具敲打另一个玩具</li>
+      <li>能用手抓东西吃，能用拇指、食指捏细小物品</li>
+      <li>能发出"ba ba"等音</li>
+      <li>能听懂大人的一些话，如听到"爸爸"这个词时能把头转向爸爸</li>
+      <li>喜欢要人抱，会对着镜子中的自己笑</li>
+      <li>学拍手，能按大人的指令用手指出灯、门等常见物品等</li>
+      <li>大人表扬自己时有高兴的表示</li>
+      <li>喜欢与大人玩"藏猫猫"的游戏</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>不能用拇指和食指捏取东西</li>
+      <li>对新奇的声音或不寻常的声音不感兴趣</li>
+      <li>不能独坐</li>
+      <li>不会吞咽菜泥、饼干等固体食物</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s2">
+  <div class="stage-header"><h2>10<span class="age-range">～12个月</span></h2></div>
+  <div class="note-fix">经用户提供原图核实：此前遗漏2条发展条目，且从未收录"发展警示"，现已补全。</div>
+  <div class="milestone-card">
+    <ul>
+      <li>长出6～8颗乳牙</li>
+      <li>能熟练地爬</li>
+      <li>扶着家具或别的东西能走</li>
+      <li>能滚皮球</li>
+      <li>喜欢反复拾起东西再扔掉</li>
+      <li>会找到藏起来的东西，喜欢玩藏东西的游戏</li>
+      <li>理解一些简单的指令，如拍手和"再见"</li>
+      <li>会用面部表情、手势、单词与大人交流，如微笑、拍手、伸出一个手指表示1岁等，会随着音乐做动作</li>
+      <li>能配合大人穿脱衣服</li>
+      <li>会搭1～2块积木</li>
+      <li>能模仿叫"爸爸"、"妈妈"</li>
+      <li>喜欢跟小朋友一起玩</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>当快速移动的物体靠近眼睛时，不会眨眼</li>
+      <li>还没有开始长牙</li>
+      <li>不会模仿简单的声音</li>
+      <li>不能根据简单的口令做动作，如"再见"等</li>
+      <li>不能和父母、家人友好地玩</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s3">
+  <div class="stage-header"><h2>1岁<span class="age-range">～1岁半</span></h2></div>
+  <div class="note-fix">经用户提供原图核实：此前遗漏1条发展条目，且从未收录"发展警示"，现已补全。之前误合并进本段的"1岁半～2岁"内容已拆分为独立分段（见下）。</div>
+  <div class="milestone-card">
+    <ul>
+      <li>有8～14颗乳牙</li>
+      <li>能独站、独走、蹲下再起来，会抬一只脚做踢的动作</li>
+      <li>走路时能推、拉或者搬运玩具</li>
+      <li>能玩简单的打鼓、敲瓶等音乐器械</li>
+      <li>能重复一些简单的声音或动作</li>
+      <li>能听懂和理解一些话，能说出自己的名字</li>
+      <li>能用一二个字表达自己的意愿</li>
+      <li>能从杯子中取出或放进小玩具</li>
+      <li>能有意识地叫"爸爸"、"妈妈"</li>
+      <li>能辨别家人的称谓和家庭里熟悉的东西</li>
+      <li>能认出镜子中的自己</li>
+      <li>能堆起2～3块积木</li>
+      <li>能自己用杯子喝水，用勺吃饭</li>
+      <li>能指出身体的各个部位</li>
+      <li>能短时间和小朋友一起玩</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>囟门仍较大</li>
+      <li>不能表现多种情感：愤怒、高兴、恐惧</li>
+      <li>不会爬</li>
+      <li>不会独站</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s3b">
+  <div class="stage-header"><h2>1岁半<span class="age-range">～2岁</span></h2></div>
+  <div class="note-fix">经用户提供原图补充：此前误判此分段不存在、内容被错误合并进"1岁～1岁半"，实为判断错误，现已按原图拆分为独立分段。</div>
+  <div class="milestone-card">
+    <ul>
+      <li>能向后退着走</li>
+      <li>能扶栏杆上下楼梯</li>
+      <li>在大人照顾下，能在宽的平衡木上走</li>
+      <li>在大人帮助下，能自己用勺吃饭</li>
+      <li>能踢球、扔球</li>
+      <li>喜爱童谣、歌曲、短故事和手指游戏</li>
+      <li>模仿大人，试图拉开和闭合普通的拉链</li>
+      <li>模仿做家务（如，给干活的大人拿个小凳子，大人做面食时跟着捏）</li>
+      <li>能手口一致说出身体各部位的名称</li>
+      <li>能主动表示想大小便</li>
+      <li>知道并运用自己的名字，如"宝宝要"</li>
+      <li>能自己洗手</li>
+      <li>会说3个字的短句</li>
+      <li>喜欢看书，学着大人的样子翻书</li>
+      <li>模仿折纸，能试图堆4～6块积木</li>
+      <li>能识2种颜色，能识简单形状，如圆、方块、三角等</li>
+      <li>喜欢玩沙、玩水</li>
+      <li>能认出照片上的自己，笑或用手指</li>
+      <li>表现出多种情感（同情、爱、不喜欢等）</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>不会独立走路</li>
+      <li>不试着讲话或者重复词语</li>
+      <li>对一些常用词不理解</li>
+      <li>对简单的问题，不能用"是"或"不是"回答</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s4">
+  <div class="stage-header"><h2>2岁<span class="age-range">～3岁</span></h2></div>
+  <div class="note-fix">经用户提供原图核实：此前误判"3岁～4岁"分段不存在、将其内容错误合并进本段（现已拆分为独立段）；同时误将"1岁半～2岁"的部分内容留在本段（现已移除归位）；本段结尾内容及发展警示此前完全遗漏，现已补全。</div>
+  <div class="milestone-card">
+    <ul>
+      <li>乳牙出齐20颗</li>
+      <li>会骑三轮车；能两脚并跳；能爬攀登架；能独自绕过障碍物（如门槛）</li>
+      <li>能用手指捏细小的物体，能解开和扣上衣服上的大钮扣，会折纸、洗手会擦干</li>
+      <li>能走较宽的平衡木</li>
+      <li>能自己上下楼梯</li>
+      <li>会拧开或拧紧盖子</li>
+      <li>能握住大的蜡笔在大纸上涂鸦</li>
+      <li>喜欢倒东西和装东西的活动，如玩沙、玩水</li>
+      <li>开始有目的地运用东西，如把一块积木当做一艘船到处推</li>
+      <li>能把物体进行简单的分类，如把衣服和鞋子分开</li>
+      <li>熟悉主要交通工具及常见动物</li>
+      <li>说出图画书上东西的名称</li>
+      <li>喜欢有人给他念书，能一页一页地翻书，并假装"读书"</li>
+      <li>能说出6～10个词的句子，能比较准确地使用"你"、"我"、"他"</li>
+      <li>脾气不稳定，没有耐心，很难等待或者轮流做事</li>
+      <li>喜欢"帮忙"做家务，爱模仿生活中的活动，如喂玩具娃娃吃饭</li>
+      <li>喜欢和别的孩子一起玩，相互模仿言行</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>不能自如地走，经常会摔倒；不能在成人帮助下爬台阶</li>
+      <li>不能提问题</li>
+      <li>不能指着熟悉的物品并说出它的名称；不能说2～3个字的句子</li>
+      <li>不能根据一个特征把熟悉的物品分类，如把吃的东西和玩具分开</li>
+      <li>不喜欢和小朋友玩</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s4b">
+  <div class="stage-header"><h2>3岁<span class="age-range">～4岁</span></h2></div>
+  <div class="milestone-card">
+    <ul>
+      <li>能交替迈步上下楼梯</li>
+      <li>能倒着走，能原地蹦跳</li>
+      <li>能短时间单脚站立</li>
+      <li>能画横线、竖线、圆圈</li>
+      <li>喜欢堆积木</li>
+      <li>认真听适合他年龄的故事，喜欢看书</li>
+      <li>认识三角形，圆形，正方形</li>
+      <li>至少能说出红、黄、蓝色的名称</li>
+      <li>能用简短的话表达自己的愿望和要求</li>
+      <li>问越来越多的问题，"是什么""为什么"等</li>
+      <li>能简单讲述看到和发生的事情</li>
+      <li>能记住家人的姓名、单位、电话和家庭住址等</li>
+      <li>能使用筷子、勺等餐具，能独立进餐</li>
+      <li>知道家里常用物品的位置</li>
+      <li>能独立穿衣</li>
+      <li>能按"吃的""穿的""用的"将物品分类</li>
+      <li>能用手指着东西数数</li>
+      <li>能与他人友好相处，懂得一些简单的规则，但常常不能坚持做</li>
+      <li>能参加一些简单的游戏和小组活动</li>
+      <li>会表达恐惧、喜欢等强烈的感觉</li>
+      <li>非常重视看护自己的玩具；有时会变得有侵略性，如抢玩具，把玩具藏起来</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>听不懂别人说的话</li>
+      <li>不能说出自己的名字和年龄，不能说3～4个字的句子</li>
+      <li>不能自己一个人玩三四分钟</li>
+      <li>不会原地跳</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s5">
+  <div class="stage-header"><h2>4岁<span class="age-range">～5岁</span></h2></div>
+  <div class="milestone-card">
+    <ul>
+      <li>能熟练地单脚跳</li>
+      <li>能沿着一条直线行走</li>
+      <li>能轻松地起跑、停下、绕过障碍物</li>
+      <li>能正确地握笔，能画出简单的图形和人物</li>
+      <li>能串较小的珠子</li>
+      <li>认识10以内的数</li>
+      <li>能按照物体的颜色、形状等特征分类并进行有规律的排列</li>
+      <li>能独自看懂并说出简单图画的意思</li>
+      <li>喜欢听有情节的故事、猜谜语</li>
+      <li>理解日常生活的顺序："我早上起床，穿衣服，刷牙，然后上幼儿园"</li>
+      <li>能回答"谁"、"为什么"、"多少个"等问题</li>
+      <li>能说比较复杂的话，如"我还没看清楚猫的颜色，它就跑过去了"</li>
+      <li>能比较清楚地表达自己的意愿</li>
+      <li>能努力控制自己的情绪，不乱发脾气，但有时会因为小挫折（如搭积木无法搭成自己想要的形状）而发脾气</li>
+      <li>喜欢与小伙伴玩；开始有"最好"的朋友，乐于参加集体活动</li>
+      <li>喜欢大人的表扬，对取得的成绩很骄傲</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>无法说出自己的全名</li>
+      <li>无法辨认简单的形状：圆形、正方形、三角形</li>
+      <li>说出的话别人听不懂</li>
+      <li>不能单脚跳跃</li>
+      <li>不能独立上厕所，不能控制大小便，经常尿裤子</li>
+    </ul>
+  </div>
+</div>
+
+<div class="stage" id="s6">
+  <div class="stage-header"><h2>5岁<span class="age-range">～6岁</span></h2></div>
+  <div class="note-fix">经用户提供原图核实：本段此前因 Word 提取遗漏近一半条目（含发展警示部分），现已补全。</div>
+  <div class="milestone-card">
+    <ul>
+      <li>学习交替单脚跳</li>
+      <li>会翻跟头</li>
+      <li>能快速、熟练地骑三轮车或有轮子的玩具</li>
+      <li>能使用笔，能画许多形状和写简单的汉字</li>
+      <li>能用各种图形的材料拼图</li>
+      <li>能把各种各样的物体分类，能按从短到长、从小到大等顺序为物体排序</li>
+      <li>数数能数到20或20以上，许多孩子能数到100</li>
+      <li>能把时间和日常生活联系起来：如"5点钟了，该看电视了"</li>
+      <li>能辨认一元、五元等钱币</li>
+      <li>能边看图画，边讲熟悉的故事</li>
+      <li>能正确地转述简短的口信，能接电话</li>
+      <li>喜欢伙伴，经常会有一两个要好的伙伴</li>
+      <li>能与小朋友分享玩具，轮流玩、一起玩</li>
+      <li>爱参加团体游戏和活动</li>
+      <li>情感丰富、关心别人，尤其是比自己年龄小的孩子、受伤的孩子和动物特别体贴</li>
+      <li>有更强的自我约束能力；情绪大起大落的情况减少</li>
+    </ul>
+  </div>
+  <div class="warning-box">
+    <h4>有以下状况，请赶快送孩子去看医生</h4>
+    <ul>
+      <li>不能交替迈步上下楼梯</li>
+      <li>不能安静地听完一个5～7分钟的小故事</li>
+      <li>不能独立地完成一些自理技能，如刷牙、洗手等</li>
+    </ul>
+  </div>
+</div>
+
+</div>
+
+<h2 id="growth-table">0～6岁孩子身高（身长）、体重参考表</h2>
+<p class="callout">原表为"年龄 × 性别(男/女) × 指标(体重/身长) × 上等/下等"四维表头，已按数字排列规律重建为下表。</p>
+<div class="risk-note">
+  <b>使用提示：</b>本表是根据 Word 提取文本中数字出现顺序模式重建，未能与原PDF版式逐一核对，建议使用前查阅原PDF第23页确认，尤其1岁/2岁分段的月龄顺序存在一定推断风险。
+</div>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>年龄</th>
+    <th>体重-男<br>下等(kg)</th>
+    <th>体重-男<br>上等(kg)</th>
+    <th>体重-女<br>下等(kg)</th>
+    <th>体重-女<br>上等(kg)</th>
+    <th>身长-男<br>下等(cm)</th>
+    <th>身长-男<br>上等(cm)</th>
+    <th>身长-女<br>下等(cm)</th>
+    <th>身长-女<br>上等(cm)</th>
+  </tr>
+  <tr><td>0月</td><td>2.5</td><td>4.3</td><td>2.5</td><td>4.0</td><td>45.9</td><td>55.1</td><td>45.5</td><td>54.2</td></tr>
+  <tr><td>1月</td><td>2.9</td><td>5.6</td><td>2.8</td><td>5.1</td><td>49.7</td><td>59.5</td><td>49.0</td><td>58.1</td></tr>
+  <tr><td>3月</td><td>4.1</td><td>7.7</td><td>3.9</td><td>7.0</td><td>55.8</td><td>66.4</td><td>54.6</td><td>64.5</td></tr>
+  <tr><td>6月</td><td>5.9</td><td>9.8</td><td>5.5</td><td>9.0</td><td>62.4</td><td>73.2</td><td>60.6</td><td>71.2</td></tr>
+  <tr><td>9月</td><td>7.2</td><td>11.3</td><td>6.6</td><td>10.5</td><td>67.0</td><td>77.6</td><td>65.0</td><td>75.9</td></tr>
+  <tr><td>1岁0月</td><td>8.1</td><td>9.1</td><td>7.4</td><td>8.5</td><td>70.7</td><td>76.3</td><td>68.6</td><td>74.8</td></tr>
+  <tr><td>1岁6月</td><td>12.4</td><td>13.9</td><td>11.6</td><td>13.1</td><td>81.5</td><td>88.5</td><td>80.0</td><td>87.1</td></tr>
+  <tr><td>2岁0月</td><td>9.9</td><td>10.8</td><td>9.4</td><td>10.3</td><td>80.9</td><td>85.4</td><td>79.9</td><td>84.5</td></tr>
+  <tr><td>2岁6月</td><td>15.2</td><td>16.4</td><td>14.5</td><td>15.9</td><td>94.4</td><td>99.2</td><td>93.0</td><td>98.1</td></tr>
+  <tr><td>3岁</td><td>11.4</td><td>18.3</td><td>11.2</td><td>18.0</td><td>87.3</td><td>102.5</td><td>86.5</td><td>101.4</td></tr>
+  <tr><td>4岁</td><td>12.9</td><td>20.8</td><td>12.6</td><td>20.7</td><td>94.4</td><td>111.5</td><td>93.5</td><td>109.7</td></tr>
+  <tr><td>5岁</td><td>14.4</td><td>23.5</td><td>13.8</td><td>23.2</td><td>100.7</td><td>119.1</td><td>99.5</td><td>117.2</td></tr>
+  <tr><td>6岁</td><td>16.0</td><td>26.6</td><td>15.0</td><td>26.2</td><td>106.4</td><td>125.8</td><td>104.8</td><td>124.5</td></tr>
+</table>
+</div>
+
+<p class="callout">
+  注：正常的测量值应在上等和下等之间。同年龄、性别的孩子，体重测量值在上等和下等之间为正常，小于下等为体重不足，大于上等为超重；同年龄、性别的孩子，身高测量值在上等和下等之间为正常，小于下等为生长迟缓，大于上等为异常。当孩子发育不正常时，应请医生查明原因，及时治疗。
+</p>
+
+<footer>
+  来源：中华人民共和国教育部《0～6岁儿童发展的里程碑》（联合国儿童基金会 unicef.cn 转载，2011年9月印，赠阅 Not for Sale）。原PDF为双栏图文混排版式，本页内容经 Word 提取并按文本中残留的分栏切换标记核实分段边界；标注"原文缺字"处为原始文档本身信息丢失，非本次整理疏漏；身高体重参考表为数字模式推断重建，具体诊疗与生长监测请以原PDF及医生指导为准。
+</footer>
+
+</main>
+</div>
+
+<button class="back-top" id="backTop" title="返回顶部">↑</button>
+<script>
+  const btn = document.getElementById('backTop');
+  window.addEventListener('scroll', () => {
+    btn.classList.toggle('show', window.scrollY > 400);
+  });
+  btn.addEventListener('click', () => window.scrollTo({top: 0, behavior: 'smooth'}));
+</script>
+
+</body>
+</html>
