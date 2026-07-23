@@ -13,6 +13,9 @@
 - `python tools/search.py "关键词" [--domain D] [--type T] [--top N]` — BM25 搜索。
 - `python tools/lint.py [--domain D]` — 健康检查。
 
+附属模块(独立于 wiki 三层结构)：
+- `hiring/` — 简历分析与面试评估，配合 skill `/resume-analysis` 使用，说明见 `hiring/README.md`。候选人材料含个人信息，已 gitignore 仅本地保留。
+
 ## 页面 frontmatter 规范
 
 每个 wiki 页面顶部必须有 YAML frontmatter，六个字段必填：

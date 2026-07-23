@@ -15,3 +15,7 @@ sources/work/*
 !sources/work/.gitkeep
 wiki/work/*
 !wiki/work/.gitkeep
+
+# 机密:候选人简历与面试材料(个人信息)仅本地保留
+hiring/candidates/*
+!hiring/candidates/.gitkeep

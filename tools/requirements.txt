@@ -1,9 +1,0 @@
-# 运行时依赖(search.py / lint.py)
-rank-bm25
-pyyaml
-
-# 抓取网页文章转 markdown 存入 sources/ 时使用(非脚本运行时必需)
-html2text
-
-# Confluence REST API 导出(confluence_export.py)
-requests
