@@ -18,31 +18,57 @@ class _StagedOutput:
     backup: Path | None = None
 
 
-def write_batch_atomic(outputs: dict[Path, str], replace: Replace = os.replace) -> None:
+@dataclass
+class _StagedDeletion:
+    target: Path
+    backup: Path | None = None
+
+
+def write_batch_atomic(
+    outputs: dict[Path, str],
+    replace: Replace = os.replace,
+    *,
+    deletions: tuple[Path, ...] = (),
+) -> None:
     """Install all rendered outputs, restoring earlier targets if installation fails.
 
-    Every output is staged before any existing target is replaced.  The mapping's
-    insertion order is deliberate: callers place the state file last so it is
-    never advanced ahead of the corresponding Markdown files.
+    Every replacement and deletion is staged before any target changes. The
+    mapping's insertion order is deliberate: deletions are installed immediately
+    before its final state output, so state is never advanced ahead of the
+    corresponding Markdown files.
     """
-    _reject_symlink_targets(outputs)
-    staged: list[_StagedOutput] = []
+    deletion_paths = tuple(Path(path) for path in deletions)
+    _reject_conflicting_targets(outputs, deletion_paths)
+    _reject_symlink_targets((*outputs, *deletion_paths))
+    staged_outputs: list[_StagedOutput] = []
+    staged_deletions: list[_StagedDeletion] = []
     active_error = False
     try:
         for target, text in outputs.items():
             staged_output = _stage_output(Path(target), text)
-            staged.append(staged_output)
+            staged_outputs.append(staged_output)
+        for target in deletion_paths:
+            staged_deletions.append(_stage_deletion(target))
 
-        _install_staged(staged, replace)
+        _install_staged(staged_outputs, staged_deletions, replace)
     except BaseException:
         active_error = True
         raise
     finally:
-        _cleanup(staged, suppress_errors=active_error)
+        _cleanup(staged_outputs, staged_deletions, suppress_errors=active_error)
 
 
-def _reject_symlink_targets(outputs: dict[Path, str]) -> None:
-    for target in outputs:
+def _reject_conflicting_targets(
+    outputs: dict[Path, str], deletions: tuple[Path, ...]
+) -> None:
+    targets = (*outputs, *deletions)
+    normalized = [Path(target).resolve(strict=False) for target in targets]
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("duplicate replacement/deletion target")
+
+
+def _reject_symlink_targets(targets) -> None:
+    for target in targets:
         target_path = Path(target)
         if target_path.is_symlink():
             raise ValueError(f"output target is a symlink: {target_path}")
@@ -58,6 +84,16 @@ def _stage_output(target: Path, text: str) -> _StagedOutput:
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
+    return staged
+
+
+def _stage_deletion(target: Path) -> _StagedDeletion:
+    staged = _StagedDeletion(target=target)
+    if not target.exists():
+        return staged
+    if not target.is_file():
+        raise ValueError(f"deletion target is not a file: {target}")
+    staged.backup = _copy_backup(target)
     return staged
 
 
@@ -89,28 +125,45 @@ def _copy_backup(target: Path) -> Path:
     return backup
 
 
-def _install_staged(staged: list[_StagedOutput], replace: Replace) -> None:
-    replaced: list[_StagedOutput] = []
+def _install_staged(
+    outputs: list[_StagedOutput],
+    deletions: list[_StagedDeletion],
+    replace: Replace,
+) -> None:
+    operations: list[_StagedOutput | _StagedDeletion] = [
+        *outputs[:-1],
+        *deletions,
+        *outputs[-1:],
+    ]
+    applied: list[_StagedOutput | _StagedDeletion] = []
     try:
-        for staged_output in staged:
-            replace(staged_output.temporary, staged_output.target)
-            replaced.append(staged_output)
+        for operation in operations:
+            if isinstance(operation, _StagedOutput):
+                replace(operation.temporary, operation.target)
+            elif operation.backup is not None:
+                operation.target.unlink()
+            applied.append(operation)
     except BaseException as error:
         try:
-            _rollback(replaced, replace)
+            _rollback(applied, replace)
         except BaseException as rollback_error:
             raise error from rollback_error
         raise
 
 
-def _rollback(replaced: list[_StagedOutput], replace: Replace) -> None:
+def _rollback(
+    applied: list[_StagedOutput | _StagedDeletion], replace: Replace
+) -> None:
     rollback_error: BaseException | None = None
-    for staged_output in reversed(replaced):
+    for operation in reversed(applied):
         try:
-            if staged_output.backup is None:
-                staged_output.target.unlink()
+            if isinstance(operation, _StagedDeletion):
+                if operation.backup is not None:
+                    _restore_backup(operation.backup, operation.target, replace)
+            elif operation.backup is None:
+                operation.target.unlink()
             else:
-                _restore_backup(staged_output.backup, staged_output.target, replace)
+                _restore_backup(operation.backup, operation.target, replace)
         except BaseException as error:
             if rollback_error is None:
                 rollback_error = error
@@ -125,9 +178,14 @@ def _restore_backup(backup: Path, target: Path, replace: Replace) -> None:
         os.replace(backup, target)
 
 
-def _cleanup(staged: list[_StagedOutput], *, suppress_errors: bool) -> None:
+def _cleanup(
+    outputs: list[_StagedOutput],
+    deletions: list[_StagedDeletion],
+    *,
+    suppress_errors: bool,
+) -> None:
     cleanup_error: OSError | None = None
-    for staged_output in staged:
+    for staged_output in outputs:
         for path in (staged_output.temporary, staged_output.backup):
             if path is None:
                 continue
@@ -136,5 +194,13 @@ def _cleanup(staged: list[_StagedOutput], *, suppress_errors: bool) -> None:
             except OSError as error:
                 if cleanup_error is None:
                     cleanup_error = error
+    for staged_deletion in deletions:
+        if staged_deletion.backup is None:
+            continue
+        try:
+            staged_deletion.backup.unlink(missing_ok=True)
+        except OSError as error:
+            if cleanup_error is None:
+                cleanup_error = error
     if cleanup_error is not None and not suppress_errors:
         raise cleanup_error

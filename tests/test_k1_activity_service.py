@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 import subprocess
 import sys
@@ -8,6 +9,7 @@ import pytest
 from tools.k1_activity_index.crawl import IncompleteTreeError
 from tools.k1_activity_index.models import ConfluenceCommandError, PageUnavailableError
 from tools.k1_activity_index.service import SyncConfig, sync_index
+from tools.k1_activity_index.transaction import write_batch_atomic as real_write_batch_atomic
 
 
 def _child(page_id, title, version=1):
@@ -61,6 +63,38 @@ def _config(tmp_path, dry_run=False, validate_only=False, mark_reviewed=()):
     )
 
 
+def _two_topic_client():
+    responses = {
+        "73598402": {
+            "total": 2,
+            "results": [_child("100", "K1 Topic A"), _child("200", "K1 Topic B")],
+        },
+        "100": {"total": 0, "results": []},
+        "200": {"total": 0, "results": []},
+    }
+    pages = {
+        "100": {"id": "100", "title": "K1 Topic A", "body": ""},
+        "200": {"id": "200", "title": "K1 Topic B", "body": ""},
+    }
+    return FakeClient(responses=responses, pages=pages)
+
+
+def _topic_moved_under_100_client():
+    responses = {
+        "73598402": {
+            "total": 1,
+            "results": [_child("100", "K1 Topic A")],
+        },
+        "100": {"total": 1, "results": [_child("200", "K1 Topic B")]},
+        "200": {"total": 0, "results": []},
+    }
+    pages = {
+        "100": {"id": "100", "title": "K1 Topic A", "body": ""},
+        "200": {"id": "200", "title": "K1 Topic B", "body": ""},
+    }
+    return FakeClient(responses=responses, pages=pages)
+
+
 def test_first_sync_writes_catalog_topic_state_and_review_report(tmp_path: Path):
     config = _config(tmp_path)
     report = sync_index(
@@ -100,6 +134,23 @@ def test_dry_run_checks_tree_without_fetching_body_or_writing(tmp_path: Path):
     assert not config.state_path.exists()
 
 
+def test_non_numeric_root_page_id_is_rejected_before_client_access(tmp_path: Path):
+    config = replace(_config(tmp_path), root_page_id=r"..\73598402")
+
+    class ExplodingClient:
+        def __getattr__(self, name):
+            raise AssertionError(f"invalid root accessed client attribute {name}")
+
+    with pytest.raises(ValueError, match="ASCII digits"):
+        sync_index(
+            config,
+            ExplodingClient(),
+            lambda: (_ for _ in ()).throw(AssertionError("invalid root called clock")),
+        )
+
+    assert not config.state_path.exists()
+
+
 def test_page_id_cannot_escape_the_configured_topic_output_root(tmp_path: Path):
     bad_id = "segment/../../../outside"
     client = FakeClient(
@@ -110,14 +161,51 @@ def test_page_id_cannot_escape_the_configured_topic_output_root(tmp_path: Path):
         pages={bad_id: {"id": bad_id, "title": "K1 Unsafe", "body": ""}},
     )
 
-    with pytest.raises(ValueError, match="outside topic output root"):
+    with pytest.raises(ValueError, match="ASCII digits"):
         sync_index(
             _config(tmp_path),
             client,
             lambda: "2026-07-29T12:00:00+08:00",
         )
 
+    assert client.page_calls == []
     assert not (tmp_path / "wiki" / "outside.md").exists()
+
+
+@pytest.mark.parametrize(
+    "bad_id",
+    (
+        "segment/../999",
+        r"segment\..\999",
+        r"segment/..\999",
+    ),
+)
+def test_non_numeric_page_id_is_rejected_before_body_fetch_or_in_directory_overwrite(
+    tmp_path: Path, bad_id: str
+):
+    config = _config(tmp_path)
+    topic_dir = config.wiki_work_dir / "k1-activities"
+    topic_dir.mkdir(parents=True)
+    unmanaged = topic_dir / "999.md"
+    unmanaged.write_text("unmanaged sentinel", encoding="utf-8")
+    client = FakeClient(
+        responses={
+            "73598402": {"total": 1, "results": [_child(bad_id, "K1 Unsafe")]},
+            bad_id: {"total": 0, "results": []},
+        },
+        pages={bad_id: {"id": bad_id, "title": "K1 Unsafe", "body": ""}},
+    )
+
+    with pytest.raises(ValueError, match="ASCII digits"):
+        sync_index(
+            config,
+            client,
+            lambda: "2026-07-29T12:00:00+08:00",
+        )
+
+    assert client.page_calls == []
+    assert unmanaged.read_text(encoding="utf-8") == "unmanaged sentinel"
+    assert not config.state_path.exists()
 
 
 def test_catalog_orders_topics_by_normalized_title_before_page_id(tmp_path: Path):
@@ -184,6 +272,80 @@ def test_incomplete_tree_leaves_existing_outputs_unchanged(tmp_path: Path):
 
     assert catalog.read_text(encoding="utf-8") == original_catalog
     assert config.state_path.read_text(encoding="utf-8") == original_state
+
+
+def test_topic_moved_under_another_topic_removes_only_stale_managed_file(
+    tmp_path: Path,
+):
+    config = _config(tmp_path)
+    sync_index(config, _two_topic_client(), lambda: "2026-07-29T12:00:00+08:00")
+    topic_dir = config.wiki_work_dir / "k1-activities"
+    stale = topic_dir / "k1-activity-200.md"
+    nonmatching = topic_dir / "k1-activity-not-managed.md"
+    nonmatching.write_text("unmanaged sentinel", encoding="utf-8")
+
+    sync_index(
+        config,
+        _topic_moved_under_100_client(),
+        lambda: "2026-07-29T13:00:00+08:00",
+    )
+
+    assert not stale.exists()
+    assert nonmatching.read_text(encoding="utf-8") == "unmanaged sentinel"
+    report = sync_index(
+        _config(tmp_path, validate_only=True),
+        None,
+        lambda: "unused",
+    )
+    assert report.topic_count == 1
+    assert report.page_count == 2
+
+
+def test_state_install_failure_restores_stale_topic_and_all_previous_outputs(
+    tmp_path: Path, monkeypatch
+):
+    config = _config(tmp_path)
+    sync_index(config, _two_topic_client(), lambda: "2026-07-29T12:00:00+08:00")
+    topic_dir = config.wiki_work_dir / "k1-activities"
+    topic_a = topic_dir / "k1-activity-100.md"
+    stale = topic_dir / "k1-activity-200.md"
+    catalog = config.wiki_work_dir / "k1-activity-catalog.md"
+    tracked_paths = (topic_a, stale, catalog, config.review_report_path, config.state_path)
+    previous = {path: path.read_text(encoding="utf-8") for path in tracked_paths}
+    deleted_targets = []
+    real_unlink = Path.unlink
+
+    def recording_unlink(path, *args, **kwargs):
+        if path == stale:
+            deleted_targets.append(path)
+        return real_unlink(path, *args, **kwargs)
+
+    def fail_state_replace(source, target):
+        if Path(target) == config.state_path:
+            raise OSError("synthetic state install failure")
+        Path(source).replace(target)
+
+    def failing_batch(outputs, *, deletions=()):
+        return real_write_batch_atomic(
+            outputs,
+            replace=fail_state_replace,
+            deletions=deletions,
+        )
+
+    monkeypatch.setattr(Path, "unlink", recording_unlink)
+    monkeypatch.setattr("tools.k1_activity_index.service.write_batch_atomic", failing_batch)
+
+    with pytest.raises(OSError, match="synthetic state"):
+        sync_index(
+            config,
+            _topic_moved_under_100_client(),
+            lambda: "2026-07-29T13:00:00+08:00",
+        )
+
+    assert deleted_targets == [stale]
+    assert {path: path.read_text(encoding="utf-8") for path in tracked_paths} == previous
+    assert not tuple(topic_dir.glob("*.k1-activity-tmp"))
+    assert not tuple(topic_dir.glob("*.k1-activity-backup"))
 
 
 def test_403_is_recorded_but_transient_error_aborts(tmp_path: Path):
@@ -303,7 +465,8 @@ def test_mark_reviewed_is_rendered_and_state_is_installed_last(tmp_path: Path, m
     sync_index(config, FakeClient(), lambda: "2026-07-29T12:00:00+08:00")
     targets = []
 
-    def recording_write(outputs):
+    def recording_write(outputs, *, deletions=()):
+        assert deletions == ()
         targets.extend(outputs)
         for path, text in outputs.items():
             path.parent.mkdir(parents=True, exist_ok=True)

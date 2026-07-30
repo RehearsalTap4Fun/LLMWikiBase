@@ -3,6 +3,7 @@
 from dataclasses import dataclass, replace
 import json
 from pathlib import Path
+import re
 
 from .crawl import crawl_tree
 from .markdown import (
@@ -26,6 +27,9 @@ from .state import (
     mark_unavailable,
 )
 from .transaction import write_batch_atomic
+
+
+_MANAGED_TOPIC_FILENAME = re.compile(r"^k1-activity-([0-9]+)\.md$", re.ASCII)
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,7 @@ class SyncReport:
 
 
 def sync_index(config: SyncConfig, client, now) -> SyncReport:
+    _validate_page_id(config.root_page_id)
     if config.validate_only:
         return validate_existing_index(config)
 
@@ -63,6 +68,7 @@ def sync_index(config: SyncConfig, client, now) -> SyncReport:
     existing_topics = load_existing_topic_documents(config.wiki_work_dir)
     client.check()
     snapshot = crawl_tree(client, config.root_page_id, config.child_limit)
+    _validate_confluence_page_ids(snapshot.root_page_id, snapshot.pages)
     next_state, changes = compute_next_state(previous, snapshot, synced_at)
 
     bodies: dict[str, str] = {}
@@ -88,10 +94,15 @@ def sync_index(config: SyncConfig, client, now) -> SyncReport:
     )
     outputs = render_and_validate_outputs(config, documents, next_state)
     report = build_sync_report(next_state, changes, documents, config.dry_run)
+    stale_topic_paths = _stale_topic_paths(
+        config.wiki_work_dir,
+        existing_topics,
+        documents,
+    )
     bodies.clear()
 
     if not config.dry_run:
-        write_batch_atomic(outputs)
+        write_batch_atomic(outputs, deletions=stale_topic_paths)
     return report
 
 
@@ -102,11 +113,12 @@ def load_existing_topic_documents(wiki_work_dir: Path) -> dict[str, ParsedTopic]
 
     parsed: dict[str, ParsedTopic] = {}
     for path in sorted(topic_dir.glob("k1-activity-*.md"), key=lambda item: item.name):
+        match = _MANAGED_TOPIC_FILENAME.fullmatch(path.name)
+        if match is None:
+            continue
         if path.is_symlink():
             raise ValueError(f"topic document is a symlink: {path}")
-        page_id = path.stem.removeprefix("k1-activity-")
-        if not page_id:
-            raise ValueError(f"topic filename has no pageId: {path}")
+        page_id = match.group(1)
         text = path.read_text(encoding="utf-8")
         errors = validate_topic_page(text, page_id)
         if errors:
@@ -298,12 +310,36 @@ def _validation_message(path: Path, errors: tuple[str, ...]) -> str:
     return f"invalid activity document {path}: {'; '.join(errors)}"
 
 
+def _stale_topic_paths(
+    wiki_work_dir: Path,
+    existing_topics: dict[str, ParsedTopic],
+    documents: tuple[TopicDocument, ...],
+) -> tuple[Path, ...]:
+    current_ids = {document.topic.page_id for document in documents}
+    stale_ids = _sorted_ids(set(existing_topics) - current_ids)
+    return tuple(_topic_output_path(wiki_work_dir, page_id) for page_id in stale_ids)
+
+
 def _topic_output_path(wiki_work_dir: Path, page_id: str) -> Path:
+    _validate_page_id(page_id)
     topic_root = (Path(wiki_work_dir) / "k1-activities").resolve(strict=False)
     candidate = (topic_root / f"k1-activity-{page_id}.md").resolve(strict=False)
     if candidate.parent != topic_root:
         raise ValueError(f"pageId resolves outside topic output root: {page_id}")
     return candidate
+
+
+def _validate_confluence_page_ids(root_page_id: str, pages: dict[str, object]) -> None:
+    _validate_page_id(root_page_id)
+    for page_id in pages:
+        _validate_page_id(page_id)
+
+
+def _validate_page_id(page_id: str) -> None:
+    if not page_id or not page_id.isascii() or not page_id.isdigit():
+        raise ValueError(
+            f"Confluence pageId must contain ASCII digits only: {page_id!r}"
+        )
 
 
 def _insert_output(outputs: dict[Path, str], path: Path, text: str) -> None:

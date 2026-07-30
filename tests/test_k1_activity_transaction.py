@@ -178,3 +178,58 @@ def test_batch_rejects_a_symlink_target_before_staging_or_replacing(tmp_path: Pa
     assert catalog.read_text(encoding="utf-8") == "old-catalog"
     assert not symlink_target.exists()
     assert {path.name for path in tmp_path.iterdir()} == {"catalog.md"}
+
+
+def test_batch_transactionally_deletes_an_existing_target_without_leftovers(tmp_path: Path):
+    topic = tmp_path / "topic.md"
+    stale = tmp_path / "stale.md"
+    state = tmp_path / "state.json"
+    topic.write_text("old-topic", encoding="utf-8")
+    stale.write_text("old-stale", encoding="utf-8")
+    state.write_text("old-state", encoding="utf-8")
+
+    write_batch_atomic(
+        {topic: "new-topic", state: "new-state"},
+        deletions=(stale,),
+    )
+
+    assert topic.read_text(encoding="utf-8") == "new-topic"
+    assert not stale.exists()
+    assert state.read_text(encoding="utf-8") == "new-state"
+    assert {path.name for path in tmp_path.iterdir()} == {"topic.md", "state.json"}
+
+
+def test_batch_restores_deleted_target_and_prior_outputs_when_state_install_fails(
+    tmp_path: Path,
+):
+    topic = tmp_path / "topic.md"
+    stale = tmp_path / "stale.md"
+    state = tmp_path / "state.json"
+    topic.write_text("old-topic", encoding="utf-8")
+    stale.write_text("old-stale", encoding="utf-8")
+    state.write_text("old-state", encoding="utf-8")
+    replaced_targets = []
+
+    def fail_state_replace(source, target):
+        target = Path(target)
+        replaced_targets.append(target)
+        if target == state:
+            raise OSError("synthetic state install failure")
+        Path(source).replace(target)
+
+    with pytest.raises(OSError, match="synthetic state"):
+        write_batch_atomic(
+            {topic: "new-topic", state: "new-state"},
+            replace=fail_state_replace,
+            deletions=(stale,),
+        )
+
+    assert replaced_targets[:2] == [topic, state]
+    assert topic.read_text(encoding="utf-8") == "old-topic"
+    assert stale.read_text(encoding="utf-8") == "old-stale"
+    assert state.read_text(encoding="utf-8") == "old-state"
+    assert {path.name for path in tmp_path.iterdir()} == {
+        "topic.md",
+        "stale.md",
+        "state.json",
+    }
