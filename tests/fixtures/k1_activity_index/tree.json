@@ -1,0 +1,38 @@
+{
+  "73598402": {
+    "total": 2,
+    "results": [
+      {
+        "id": "100",
+        "title": "Topic A",
+        "status": "current",
+        "space": "KEFU",
+        "version": 1,
+        "url": "https://wiki.example.test/pages/viewpage.action?pageId=100"
+      },
+      {
+        "id": "200",
+        "title": "Topic B",
+        "status": "current",
+        "space": "KEFU",
+        "version": 1,
+        "url": "https://wiki.example.test/pages/viewpage.action?pageId=200"
+      }
+    ]
+  },
+  "100": {
+    "total": 1,
+    "results": [
+      {
+        "id": "101",
+        "title": "A Store",
+        "status": "current",
+        "space": "KEFU",
+        "version": 1,
+        "url": "https://wiki.example.test/pages/viewpage.action?pageId=101"
+      }
+    ]
+  },
+  "101": {"total": 0, "results": []},
+  "200": {"total": 0, "results": []}
+}
