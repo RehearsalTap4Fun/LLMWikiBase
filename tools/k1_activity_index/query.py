@@ -59,9 +59,12 @@ class SearchHit:
 
 def load_search_documents(activity_dir: Path) -> tuple[SearchDocument, ...]:
     """Load only validated, managed pages from one configured activity directory."""
-    root = Path(activity_dir).resolve(strict=False)
+    configured_root = Path(activity_dir)
+    if configured_root.is_symlink():
+        raise ValueError(f"activity directory is a symlink: {configured_root}")
+    root = configured_root.resolve(strict=False)
     if not root.exists():
-        return ()
+        raise FileNotFoundError(f"activity directory does not exist: {configured_root}")
     if not root.is_dir():
         raise ValueError(f"activity directory is not a directory: {root}")
     if root.is_symlink():
