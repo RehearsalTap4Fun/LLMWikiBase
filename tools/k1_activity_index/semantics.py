@@ -76,7 +76,8 @@ def draft_page_semantics(page: PageRecord, body: str) -> SemanticDraft:
 def draft_topic_summary(topic: PageRecord, descendant_drafts) -> str:
     """Summarize a topic from its title and known child roles only."""
     title = normalize_label(topic.title)
-    roles = tuple(dict.fromkeys(draft.role for draft in descendant_drafts if draft.role != "其他"))
+    observed_roles = {draft.role for draft in descendant_drafts}
+    roles = tuple(label for label, _ in ROLE_RULES if label in observed_roles)
     if roles:
         return f"{title}主题活动，包含{'、'.join(roles)}等子活动入口。"
     return f"{title}主题活动。"
