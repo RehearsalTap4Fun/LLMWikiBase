@@ -2,16 +2,16 @@
 title: AI 工作流经验沉淀(2026-06~07)
 type: synthesis
 domain: ai-llm
-source: sources/ai-llm/hook-fires-2026-06.md; sources/ai-llm/2026-06-30-ai-usage-review.md; sources/ai-llm/2026-07-01-ai-usage-review.md
-date: 2026-07-03
+source: sources/ai-llm/hook-fires-2026-06.md; sources/ai-llm/hook-fires-2026-07.md; sources/ai-llm/2026-06-30-ai-usage-review.md; sources/ai-llm/2026-07-01-ai-usage-review.md; sources/ai-llm/2026-07-02-ai-usage-review.md; sources/ai-llm/2026-07-03-ai-usage-review.md; sources/ai-llm/2026-07-06-ai-usage-review.md; sources/ai-llm/2026-07-07-ai-usage-review.md; sources/ai-llm/2026-07-08-ai-usage-review.md; sources/ai-llm/2026-07-09-ai-usage-review.md; sources/ai-llm/2026-07-10-ai-usage-review.md; sources/ai-llm/2026-07-21-ai-usage-review.md
+date: 2026-07-24
 confidence: medium
-tags: [claude-code, codex, 工作流, hook, 个人经验, brainstorming, plan, subagent, 自动化, ingest, lint, 协议, 配置工程, 设计意图, xlsx, xmind, 编码, 反向同步, 真相源, 报告成功前自检, 外部installer, 最小覆盖, code-review, spec-compliance, clean-checkout, 开发资产]
+tags: [claude-code, codex, 工作流, hook, 个人经验, brainstorming, plan, subagent, 自动化, ingest, lint, 协议, 配置工程, 设计意图, xlsx, xmind, 编码, 反向同步, 真相源, 报告成功前自检, 外部installer, 最小覆盖, code-review, spec-compliance, clean-checkout, 开发资产, 证据链, 配置字段, 版本表, Skill路由, 视觉验收, 事实边界]
 links: ["[[hook-usage-log-pipeline]]", "[[windows-python-hook-stdout-ascii]]", "[[llm-wiki-pattern]]"]
 ---
 
 # AI 工作流经验沉淀(2026-06~07)
 
-> 综合自 [[hook-usage-log-pipeline]] 在 2026-06 月的自动总结,以及 2026-06-30/2026-07-01 两篇 Codex 日复盘。主题从 Claude Code 配置工程扩展到 Codex 实施/审查协作,仍属于「LLM 当簿记员」在个人元工作流上的落地。confidence 标 medium 是因为主要来自同一批项目簇,还未跨多个项目复现。
+> 综合自 [[hook-usage-log-pipeline]] 在 2026-06 月的自动总结,以及 2026-06-30 至 2026-07-21 的 Codex/Claude Code 日复盘。主题从 Claude Code 配置工程扩展到 Codex 实施/审查协作、知识库自动化和配置字段拆分,仍属于「LLM 当簿记员」在个人元工作流上的落地。confidence 标 medium 是因为主要来自同一批项目簇,还未跨多个项目复现。
 
 ## 三条最稳的原则
 
@@ -228,6 +228,66 @@ links: ["[[hook-usage-log-pipeline]]", "[[windows-python-hook-stdout-ascii]]", "
 **做法**:把评审中稳定成立的约束写成测试或检查项,例如引用都能解析、静态资源来自已跟踪的 `public/assets` 子集、hero placement 从 spawn 可达、内容表路径在 clean checkout 下存在。
 
 **为什么**:clean checkout 视角能抓住"本机有未跟踪素材,部署/新拉仓库没有"这类交付缺口。测试把一次发现变成持续护栏,比靠 review 记忆稳。
+
+## 2026-07-02 至 07-21 补充
+
+7 月中上旬的日复盘把前面的原则继续推进到"事实边界、配置语义和可见验收"。这些经验仍属于滚动综合,不另开新页。
+
+### 21. 自动化 no-op 也要完整验证
+
+**痛点**:每日巡检有时结论是"不写库、不提交",但这不等于可以跳过证据链。路径占位符、空日志和无新增判断都可能因为执行环境不一致而误判。
+
+**做法**:自动化收尾至少确认实际工作目录、输入路径、git status、候选素材和现有母页;prompt 里的 `$CODEX_HOME` 这类占位符要解析成真实路径后再用。
+
+**为什么**:no-op 是一种结果,不是免检通行证。越是"无需动作",越要说明检查了什么,否则下一次很难分辨是真无变化还是没看对地方。
+
+### 22. 健康检查先修可信工具,语义链接不能硬造
+
+**痛点**:知识库 lint 或健康检查如果工具链本身不可信,很容易把目标从"知识关系正确"滑成"把红字消掉"。为了消孤立页而挂错链接,会污染后续查询。
+
+**做法**:先修搜索/索引/路径解析工具,再讨论 lint 结果;只按真实同域主题和 tags 重叠提议链接,宁可保留孤立页,也不把弱相关页面硬连成双向关系。
+
+**为什么**:wiki 的价值在可解释的语义结构。错误链接比孤立页更糟,因为它会让搜索、回答和后续 ingest 都沿错路径扩散。
+
+### 23. 调试按层级升级:配置事实 -> 逻辑模拟 -> 用户可见
+
+**痛点**:关卡、视觉和交互问题容易被直接归因到引擎或 CSS,但实际根因常在 stage-specific 配置、几何层级或浏览器可见状态。
+
+**做法**:先查配置图和字段事实,再用单元/脚本模拟关键逻辑,最后用浏览器截图、控制台和像素/布局检查验证用户真实看到的页面。视觉 bug 要翻译成几何、层级和约束,不能只凭截图感觉调。
+
+**为什么**:逻辑存在不等于用户可见,单元通过也不等于页面正确。层级升级能把"我觉得好了"变成可复现证据。
+
+### 24. 时效信息先锁事实边界
+
+**痛点**:最新产品流程、第三方仓库和外部页面会变化;若只给标准 happy path,容易掩盖用户真正遇到的异常分支。需要登录或 403 的页面也不能凭标题或 URL 猜正文。
+
+**做法**:先确认可信来源、发布时间、访问权限和事实边界;官方流程只覆盖标准路径时,要把用户反馈转成"为什么可能没有这个入口 + 下一步证据"。安装第三方技能/插件前,先确认信任的是哪个仓库。
+
+**为什么**:外部信息的风险不在表达,在事实已经过期或不可访问。先划边界,后面的建议才不会把猜测包装成结论。
+
+### 25. 多仓库任务按语义切面并行
+
+**痛点**:大规格文档或 K1 跨仓库评审如果按文件顺序顺读,会把客户端、服务器、配置表和数据口径混在一起,最后发现问题却难以定位责任边界。
+
+**做法**:先按语义切面拆 review:规格符合性、代码质量、配置契约、测试/交付风险、派生文档同步。每个切面都要求落到文件、行号、数据来源和 residual risk。
+
+**为什么**:并行切面能更快暴露高杠杆问题,也能防止"评审清单有行号"却没有并发、幂等、迁移、回滚和可观测验收约束。
+
+### 26. 配置字段拆分以语义职责为单位
+
+**痛点**:过载 ID 字段常同时承担入口、展示、奖励、版本和运行时复制等职责。只搜索直接 `cfg.ID` 会漏掉协议链和运行时复制,修第一个 nil 也可能把事故延后。
+
+**做法**:先盘点字段的全部语义职责,再决定拆分字段和迁移范围;分版本配置要先确认是覆盖还是回退,不要因为总表有值就否定版本表报错。工具预览只是视图,反常时要回到底层事实源,优先检查 raw OOXML/真实工作簿/源数据。
+
+**为什么**:字段迁移不是改名,是责任拆分。版本表覆盖无回退、底层事实源与工具预览不一致,都属于配置工程里最容易被表面结果掩盖的问题。
+
+### 27. 项目专用路由规则要持久化
+
+**痛点**:项目内前端/后端/配置仓库路径、Skill 选择和禁用工具如果只靠当前对话记忆,后续 agent 很容易用错仓库或错 skill。
+
+**做法**:把项目仓库路径、Skill 路由和禁用替代项写进项目级指引;例如 K1 正式配置表走 `config-table-editor`,不得用 X1/X15 的 `xcfg-tool` 代替。
+
+**为什么**:路由规则本身是知识库的一部分。它决定后续查询从哪里取证,也决定修改时是否会误碰不属于当前项目的工具链。
 
 ## 与本知识库其他页的关系
 

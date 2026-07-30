@@ -2,6 +2,23 @@
 
 > 追加式、按时间倒序。条目格式可 grep：`## [YYYY-MM-DD] 动作 — 摘要`
 
+## [2026-07-29] ingest — 建立 K1 Confluence 活动本地路由索引
+- 新建 [[k1-activity-catalog]] 及 62 个一级活动主题页，实时同步 `K1活动` 根页 `73598402` 下 766 个页面的标题、层级、版本、状态与回源 URL。
+- 新增 `tools/sync_k1_activity_index.py` 与 `tools/search_k1_activity.py`，完成全量树同步、人工语义复核、变更复核报告和本地活动查询路由。
+- 更新 [[k1-confluence-routing]] 与 AGENTS.md Query 工作流：活动名、别名、子活动或机制先走本地索引，易变信息再实时读取对应 Confluence 页面。
+- 安全边界：本地只保存路由元数据与人工核定摘要，不存储 Confluence 完整正文、凭证、奖励表、服务器范围或道具 ID 明细。
+
+## [2026-07-24] ingest — 写入 2026-07 下旬 K1 地图配置与 AI 工作流复盘
+- 新建 [[k1-map-config-review-2026-07-21]]:依据 `sources/work/2026-07-21-k1-map-config-review.md` 与 `sources/work/2026-07-22-map-editor-visual-state-review.md`,沉淀 1022 新服地图配置、邻接/刷新容量、双表编辑器和初始堡垒视觉状态验收。
+- 更新 [[work-dingtalk-logs-2026-h2]]:依据 `sources/work/dingtalk-logs-2026/dingtalk-logs-2026.md` 将覆盖范围扩展至 2026-07-21,并保留 2026-07-20 标题/2026-07-17 日期字段不一致的导出口径异常。
+- 更新 [[ai-claude-workflow-lessons]]:并入 2026-07-02 至 07-21 rolling AI 使用复盘,补配置字段语义拆分、版本表覆盖、原始事实源校验、设计审查约束和 Skill 路由持久化。
+- 同步更新 wiki/index.md;parenting 素材仍因 domain schema 未扩展而未写入。
+
+## [2026-07-13] maintenance — 清理断链并补强 2026H2 钉钉日志摘要
+- 依用户裁决移除已失效的 gaming 概念内容:删除 [[k1-new-server-map-plan]] 的 frontmatter 链接与设计模式旁注,并清理 index 及历史日志中的对应条目。
+- 更新 [[work-dingtalk-logs-2026-h2]]:依据 `sources/work/dingtalk-logs-2026/dingtalk-logs-2026.md` 将覆盖范围从 1 条扩展至 4 条(07-01 至 07-06),补入世界杯活动验收、手感调整和新服大地图方案,置信度由 low 调整为 medium。
+- 同步更新 wiki/index.md 的 H2 日志摘要。
+
 ## [2026-07-08] update — 控制台 GBK 显示乱码适用范围扩展
 - 来源:对话(执行"用 PyMuPDF 重建双栏 PDF 排序"任务时,同一次任务里连续 3 次误判控制台中文乱码为数据错误)
 - 更新 [[windows-python-hook-stdout-ascii]]:新增"扩展"小节,把适用范围从"Python hook stdout"扩大到"任何控制台 print/Write-Output 中文场景",补充排查方法(写文件+UTF-8读取验证 vs 直接断定数据错误)
@@ -243,13 +260,12 @@
 - 选 A 方案而非 C(只记 log)的依据:#1/#2/#3 三条跨项目复用价值高,留在 sources 会被新月份日志稀释
 - 排除入页的 2 条建议(`templates/config-tool-spec.md` / `scripts/check_plan_signatures.py`)只在新页「已落地的较小项」一节点名,不另开页 —— 它们是项目内部工具,跨项目复用性中等
 
-## [2026-06-17] ingest — 从 MindToDoc auto-memory 回填 2 条经验
+## [2026-06-17] ingest — 从 MindToDoc auto-memory 回填 1 条经验
 - 来源:`~/.kiro/projects/C--Project-MindToDoc/memory/` 的当日 6 条 memory，按"对未来仍具参考价值"标准筛选
-- 新建 2 页:
+- 新建 1 页:
   - ai-llm 概念 ×1:[[dingtalk-md-escape-diff]](技术 recipe,跨项目复用)
-  - gaming 概念 ×1:[[双模式难度故意不对齐]](可泛化游戏设计模式)
-- 排除 4 条(留在 auto-memory):user 角色、2 条 feedback 协作偏好、1 条项目内部状态
-- 更新 index.md:gaming 新增 1 条、ai-llm 个人经验新增 1 条
+- 排除 5 条(留在 auto-memory):user 角色、3 条 feedback 协作偏好、1 条项目内部状态
+- 更新 index.md:ai-llm 个人经验新增 1 条
 - 背景:hook 在 06-17 19:14 触发(321k tokens, 切片操作模式讨论),已修订 `summarize-gate.py` reason 模板,后续 memory 写入会自动判断是否同步 KB
 
 ## [2026-06-16] ingest — 新增 3 篇素材(ai-llm hook 经验 ×2 + gaming 兼容自检 ×1)

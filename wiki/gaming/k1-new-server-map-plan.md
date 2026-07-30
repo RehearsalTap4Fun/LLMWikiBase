@@ -6,7 +6,7 @@ source: 对话; obsidian 草案 wiki/gaming/k1-new-server-map-plan.md
 date: 2026-07-02
 confidence: medium
 tags: [K1, 新服地图, 大地图, KVK, 联盟, 堡垒, 龙巢, 王座, 任务重构]
-links: ["[[高兼容性风险修改项自检]]", "[[双模式难度故意不对齐]]"]
+links: ["[[高兼容性风险修改项自检]]", "[[k1-map-config-review-2026-07-21]]"]
 ---
 
 # K1 新服大地图重构策划案
@@ -16,7 +16,7 @@ links: ["[[高兼容性风险修改项自检]]", "[[双模式难度故意不对�
 **适用范围**:仅新开服务器,不做老服兼容  
 **性质**:借用 KVK 地图骨架与占领规则,重构新服大地图形态。**逻辑上仍是原服**,不是 KVK。
 
-参考依据:K1 KVK/活动/新玩家相关口径见 `wiki/work/k1-kvk-burning-expedition.md`、`wiki/work/k1-live-activity-patterns-2026h1.md`、`wiki/work/k1-new-player-retention-roi.md`;兼容风险见 [[高兼容性风险修改项自检]]。落地后的付费成长效果验证见 [[k1-new-map-payment-growth-attribution]]。
+参考依据:K1 KVK/活动/新玩家相关口径见 `wiki/work/k1-kvk-burning-expedition.md`、`wiki/work/k1-live-activity-patterns-2026h1.md`、`wiki/work/k1-new-player-retention-roi.md`;兼容风险见 [[高兼容性风险修改项自检]]。落地后的付费成长效果验证见 [[k1-new-map-payment-growth-attribution]],配置落地与编辑器验证见 [[k1-map-config-review-2026-07-21]]。
 
 ---
 
@@ -57,10 +57,6 @@ links: ["[[高兼容性风险修改项自检]]", "[[双模式难度故意不对�
 - 不改动联盟系统的基础规则(报名、退出、弹劾、机器人、盟主竞选、联盟科技主干等)。
 - 不重构商业化模型。
 - 不引入 KVK 阵营、跨服匹配、天气、女神等完整 KVK 活动机制到原服。
-
-### 1.5 设计模式旁注
-
-本方案采用"结构相似、规则不完全对齐"的思路:新服原服地图借用 KVK 的方格、堡垒、王座骨架,但保留原服逻辑和商业化主结构。这与 [[双模式难度故意不对齐]] 的原则一致:两个模式共享认知锚点,但允许规则偏向不同,让玩家自然迁移而不是要求完全等价。
 
 ---
 

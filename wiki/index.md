@@ -12,6 +12,7 @@
 **项目组 wiki 口径**
 - [[k1-project-knowledge-map]] — Confluence `K1 游戏知识` 页面树盘点：活动、FAQ、付费、KVK 是主干，`需删除` 和旧/过期页默认排除。
 - [[k1-confluence-routing]] — 未摄取内容路由表：本地查不到时按分支去 Confluence 找，跟踪各分支摄取状态。
+- [[k1-activity-catalog]] — K1 活动主题、别名、机制标签与具体 Confluence 子页的本地路由目录。
 - [[k1-cs-faq-current]] — K1 客服 FAQ 当前口径：守卫币、领主装备、联盟跨服召集、新玩家保护等可答复边界。
 - [[k1-kvk-burning-expedition]] — K1 燃烧的远征/KVK 口径：名称、联盟规则、安全区、女神系统和客服答复边界。
 - [[k1-paid-products-current]] — K1 付费产品当前口径：守卫币、精英卡、成长基金、商会补给、首充等产品边界。
@@ -19,7 +20,8 @@
 **素材摘要**
 - [[work-weekly-2026-06-08]] — 2026-06-08 至 06-14 周报：世界杯主题活动、巨龙培育、周年庆验收与 KVK 后续目标。
 - [[work-dingtalk-logs-2026-h1]] — 2026H1 钉钉日报归档：118 条日志串起联盟对决、SVS/KVK、巨龙培育、世界杯主题活动正式配置、手感调优、双操作模式与 AI 协作。
-- [[work-dingtalk-logs-2026-h2]] — 2026H2 钉钉日报归档种子页：07-01 承接世界杯主体活动引导、AI 难度调整与双操作模式验收。
+- [[work-dingtalk-logs-2026-h2]] — 2026H2 钉钉日报归档：11 条日志覆盖世界杯活动收尾、线上问题处理、新服大地图方案与配置落地。
+- [[k1-map-config-review-2026-07-21]] — 2026-07-21/22 K1 新服地图配置复盘：1022 地图区域/邻接、刷新容量、双表编辑器与初始堡垒视觉状态验收。
 - [[k1-satisfaction-2026-h1]] — K1 2026H1 满意度母报告：付费体验最低，礼包性价比与付费活动是最低三级指标。
 - [[k1-payment-experience-decline-2026-h1]] — 2026H1 付费体验下降归因：不满集中在“花钱不值”，俄语区、新玩家第一印象和边付边骂人群风险突出。
 - [[k1-wilderness-hunting-return-analysis]] — 荒野狩猎回归分析：活动可拉 PVE 与在线，但付费率/ARPPU 无系统性抬升。
@@ -44,7 +46,6 @@
 **概念/规范**
 - [[dungeon-maker-framework-pattern]] — Dungeon Maker 式地牢经营框架:每日卡牌路径 + 地牢建设 + 自动战斗 + 局外解锁。
 - [[高兼容性风险修改项自检]] — K1 开发规范:哪些改动有新旧版本兼容风险,提交前必查的 8 项清单。
-- [[双模式难度故意不对齐]] — 多模式并行系统设计模式：偏向 + 切换零代价 = 玩家自学场景-模式映射。
 
 **素材摘要**
 - [[dungeon-maker-reference-resource]] — Dungeon Maker 参考资源包:本地 JSON 配置物料与框架说明,用于后续开发参考。
@@ -60,7 +61,7 @@
 
 **综合**
 - [[llm-wiki-vs-rag]] — 规模决定架构:个人规模为何选纯 wiki 而非 RAG(5万–10万 token 阈值)。
-- [[ai-claude-workflow-lessons]] — AI 工作流经验:Claude/Codex 配置工程、spec grounding、审查线程、开发资产四件套与 clean checkout 护栏。
+- [[ai-claude-workflow-lessons]] — AI 工作流经验:Claude/Codex 配置工程、spec grounding、事实边界、配置字段拆分、版本表覆盖、Skill 路由与可见验收护栏。
 
 **素材摘要**
 - [[karpathy-llm-wiki]] — Karpathy gist:模式理念源头。
