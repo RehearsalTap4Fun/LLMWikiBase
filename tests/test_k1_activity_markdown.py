@@ -189,6 +189,17 @@ def test_validate_rejects_duplicate_descendant_ids_and_forbidden_frontmatter():
     assert any("forbidden frontmatter key" in error for error in errors)
 
 
+@pytest.mark.parametrize("missing_key", ("tags", "links"))
+def test_validate_returns_diagnostic_when_required_curated_frontmatter_is_missing(missing_key):
+    page = render_topic_page(_document())
+    frontmatter_line = next(line for line in page.splitlines() if line.startswith(f"{missing_key}: "))
+    malformed = page.replace(f"{frontmatter_line}\n", "", 1)
+
+    errors = validate_topic_page(malformed, "100")
+
+    assert f"missing frontmatter key: {missing_key}" in errors
+
+
 def test_validate_reports_unmanaged_content_and_malformed_curated_sections():
     page = render_topic_page(_document())
     unmanaged = page.replace("<!-- K1-ACTIVITY-GENERATED:START -->", "人工段落\n<!-- K1-ACTIVITY-GENERATED:START -->")

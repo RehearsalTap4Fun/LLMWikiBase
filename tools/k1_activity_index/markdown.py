@@ -395,7 +395,7 @@ def _parse_curated(region: str, frontmatter: dict[str, object]) -> CuratedTopic:
     aliases = _parse_bullets(sections["别名"], "别名")
     tags = _parse_bullets(sections["语义标签"], "语义标签")
     links = _parse_bullets(sections["关联页面"], "关联页面")
-    if not isinstance(frontmatter["tags"], list) or not isinstance(frontmatter["links"], list):
+    if not isinstance(frontmatter.get("tags"), list) or not isinstance(frontmatter.get("links"), list):
         raise ValueError("malformed frontmatter list")
     return CuratedTopic(
         summary=sections["主题摘要"], aliases=aliases, tags=tags, links=links, notes=sections["人工备注"]
