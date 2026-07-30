@@ -7,6 +7,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+.cache/k1-activity-index/
 .obsidian/graph.json
 .worktrees/
 
