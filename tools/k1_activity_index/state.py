@@ -51,6 +51,7 @@ def compute_next_state(previous: IndexState, snapshot: CrawlSnapshot, synced_at:
     renamed_ids: set[str] = set()
     moved_ids: set[str] = set()
     missing_ids: set[str] = set()
+    retry_ids: set[str] = set()
 
     for page_id, record in snapshot.pages.items():
         old = previous.pages.get(page_id)
@@ -62,6 +63,9 @@ def compute_next_state(previous: IndexState, snapshot: CrawlSnapshot, synced_at:
         renamed = old.title != record.title
         moved = old.parent_id != record.parent_id
         version_changed = old.version != record.version
+        retry_content = old.availability == "inaccessible" or old.availability.startswith(
+            "unavailable-"
+        )
         aliases = old.aliases
         if renamed and old.title not in aliases:
             aliases = aliases + (old.title,)
@@ -71,10 +75,14 @@ def compute_next_state(previous: IndexState, snapshot: CrawlSnapshot, synced_at:
             moved_ids.add(page_id)
         if version_changed:
             version_changed_ids.add(page_id)
+        if retry_content:
+            retry_ids.add(page_id)
         pages[page_id] = _from_record(
             record,
             aliases=aliases,
-            review_needed=old.review_needed or renamed or moved or version_changed,
+            review_needed=(
+                old.review_needed or renamed or moved or version_changed or retry_content
+            ),
         )
 
     for page_id, old in previous.pages.items():
@@ -83,7 +91,7 @@ def compute_next_state(previous: IndexState, snapshot: CrawlSnapshot, synced_at:
             if old.availability != "missing-from-root":
                 missing_ids.add(page_id)
 
-    content_ids = new_ids | version_changed_ids | renamed_ids | moved_ids
+    content_ids = new_ids | version_changed_ids | renamed_ids | moved_ids | retry_ids
     changes = ChangeSet(
         new_ids=_sorted_ids(new_ids),
         version_changed_ids=_sorted_ids(version_changed_ids),

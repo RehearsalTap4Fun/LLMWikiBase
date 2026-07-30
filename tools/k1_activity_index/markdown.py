@@ -7,6 +7,7 @@ import re
 from urllib.parse import parse_qs, urlparse
 
 from .models import PageState
+from .semantics import normalize_label
 
 
 CURATED_START = "<!-- K1-ACTIVITY-CURATED:START -->"
@@ -118,6 +119,9 @@ def render_catalog(
     if existing_text is None:
         curated_region = _render_catalog_curated()
     else:
+        errors = validate_catalog_page(existing_text)
+        if errors:
+            raise ValueError(f"invalid existing catalog: {'; '.join(errors)}")
         frontmatter = _parse_frontmatter(existing_text)
         missing = tuple(key for key in _REQUIRED_FRONTMATTER if key not in frontmatter)
         if missing:
@@ -143,7 +147,7 @@ def render_catalog(
     lines = [GENERATED_START, "## 索引元数据", f"- 同步时间：{_cell(synced_at)}", ""]
     for heading, group in groups:
         lines.extend((f"## {heading}", "| pageId | 主题 | 摘要 | 回源 |", "| --- | --- | --- | --- |"))
-        for document in sorted(group, key=lambda item: _id_key(item.topic.page_id)):
+        for document in sorted(group, key=lambda item: _page_key(item.topic)):
             lines.append(
                 "| {page_id} | {title} | {summary} | {url} |".format(
                     page_id=_cell(document.topic.page_id),
@@ -204,6 +208,48 @@ def validate_topic_page(text: str, expected_page_id: str) -> tuple[str, ...]:
         seen.add(page_id)
         if len(row) > 6 and row[6] != expected_page_id:
             errors.append(f"descendant topic ID differs from root: {page_id}")
+    return tuple(errors)
+
+
+def validate_catalog_page(text: str) -> tuple[str, ...]:
+    """Return structural catalog errors without rewriting the document."""
+    errors: list[str] = []
+    try:
+        frontmatter = _parse_frontmatter(text)
+    except ValueError as error:
+        return (str(error),)
+    for key in _REQUIRED_FRONTMATTER:
+        if key not in frontmatter:
+            errors.append(f"missing frontmatter key: {key}")
+    for key in frontmatter:
+        if key.casefold() in _FORBIDDEN_FRONTMATTER:
+            errors.append(f"forbidden frontmatter key: {key}")
+    try:
+        layout = _protected_layout(text)
+    except ValueError as error:
+        errors.append(str(error))
+        return tuple(errors)
+    try:
+        _reject_unsafe_document_content(text, layout)
+    except ValueError as error:
+        errors.append(str(error))
+    try:
+        curated = _region_from_layout(text, layout, "curated")
+        content = curated[len(CURATED_START) : -len(CURATED_END)].strip("\r\n")
+        _named_sections(content, ("使用说明", "人工备注"))
+    except ValueError as error:
+        errors.append(f"malformed catalog curated sections: {error}")
+    try:
+        generated = _region_from_layout(text, layout, "generated")
+        content = generated[len(GENERATED_START) : -len(GENERATED_END)].strip(
+            "\r\n"
+        )
+        _named_sections(
+            content,
+            ("索引元数据", "当前可用", "历史/过期", "不可访问"),
+        )
+    except ValueError as error:
+        errors.append(f"malformed catalog generated sections: {error}")
     return tuple(errors)
 
 
@@ -281,7 +327,7 @@ def _render_generated(document: TopicDocument, children: tuple[ChildEntry, ...])
         "| " + " | ".join(_CHILD_COLUMNS) + " |",
         "| " + " | ".join("---" for _ in _CHILD_COLUMNS) + " |",
     ]
-    for child in sorted(children, key=lambda item: _id_key(item.page.page_id)):
+    for child in sorted(children, key=lambda item: _page_key(item.page)):
         page = child.page
         lines.append(
             "| "
@@ -570,3 +616,7 @@ def _id_key(page_id: str) -> tuple[int, int | str]:
         return (0, int(page_id))
     except ValueError:
         return (1, page_id)
+
+
+def _page_key(page: PageState) -> tuple[str, tuple[int, int | str]]:
+    return (normalize_label(page.title).casefold(), _id_key(page.page_id))
