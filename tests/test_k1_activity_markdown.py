@@ -94,6 +94,32 @@ def test_parser_rejects_duplicated_or_malformed_structure():
         parse_topic_page(page.replace('title: "K1 主题A"', "title: not-json"))
 
 
+def test_parser_and_validator_reject_crossing_protected_markers():
+    page = render_topic_page(_document())
+    crossing = page.replace(
+        "<!-- K1-ACTIVITY-CURATED:END -->\n\n<!-- K1-ACTIVITY-GENERATED:START -->",
+        "<!-- K1-ACTIVITY-GENERATED:START -->\n<!-- K1-ACTIVITY-CURATED:END -->",
+    )
+
+    with pytest.raises(ValueError, match="protected marker order"):
+        parse_topic_page(crossing)
+    assert any("protected marker order" in error for error in validate_topic_page(crossing, "100"))
+
+
+def test_crlf_page_parses_and_preserves_curated_region_byte_for_byte():
+    page = render_topic_page(_document())
+    crlf_page = page.replace("\n", "\r\n")
+    parsed = parse_topic_page(crlf_page)
+
+    rerendered = render_topic_page(replace(_document(), curated=parsed.curated), existing_text=crlf_page)
+
+    assert _region(rerendered, "<!-- K1-ACTIVITY-CURATED:START -->", "<!-- K1-ACTIVITY-CURATED:END -->") == _region(
+        crlf_page,
+        "<!-- K1-ACTIVITY-CURATED:START -->",
+        "<!-- K1-ACTIVITY-CURATED:END -->",
+    )
+
+
 def test_parser_rejects_unmanaged_or_copied_body_content():
     page = render_topic_page(_document())
 
@@ -114,6 +140,17 @@ def test_existing_child_summary_survives_when_child_version_is_unchanged():
     )
 
     assert "人工核定的子页摘要。" in rerendered
+
+
+def test_backslashes_in_child_summary_round_trip_and_survive_rerender():
+    summary = r"C:\manual\keep"
+    document = replace(_document(), children=(ChildEntry(_document().children[0].page, "商店/兑换", summary),))
+    first = render_topic_page(document)
+    parsed = parse_topic_page(first)
+
+    assert parsed.children["101100"].summary == summary
+    rerendered = render_topic_page(document, existing_text=first)
+    assert summary in rerendered
 
 
 def test_render_escapes_markdown_table_cells_and_sorts_descendants():
@@ -150,6 +187,15 @@ def test_validate_rejects_duplicate_descendant_ids_and_forbidden_frontmatter():
 
     assert any("duplicate descendant pageId" in error for error in errors)
     assert any("forbidden frontmatter key" in error for error in errors)
+
+
+def test_validate_reports_unmanaged_content_and_malformed_curated_sections():
+    page = render_topic_page(_document())
+    unmanaged = page.replace("<!-- K1-ACTIVITY-GENERATED:START -->", "人工段落\n<!-- K1-ACTIVITY-GENERATED:START -->")
+    malformed_curated = page.replace("## 别名", "## 其他标题", 1)
+
+    assert any("unmanaged" in error for error in validate_topic_page(unmanaged, "100"))
+    assert any("curated sections" in error for error in validate_topic_page(malformed_curated, "100"))
 
 
 def test_catalog_groups_historical_and_inaccessible_topics_and_preserves_intro():

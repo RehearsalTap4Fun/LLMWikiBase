@@ -76,11 +76,10 @@ class ParsedTopic:
 
 def parse_topic_page(text: str) -> ParsedTopic:
     """Parse a generated topic page without accepting unsafe partial documents."""
-    curated_region = _extract_single_region(text, CURATED_START, CURATED_END, "curated")
-    generated_region = _extract_single_region(text, GENERATED_START, GENERATED_END, "generated")
-    if text.index(CURATED_START) > text.index(GENERATED_START):
-        raise ValueError("curated region must precede generated region")
-    _reject_unsafe_document_content(text)
+    layout = _protected_layout(text)
+    curated_region = _region_from_layout(text, layout, "curated")
+    generated_region = _region_from_layout(text, layout, "generated")
+    _reject_unsafe_document_content(text, layout)
     frontmatter = _parse_frontmatter(text)
     missing = tuple(key for key in _REQUIRED_FRONTMATTER if key not in frontmatter)
     if missing:
@@ -124,9 +123,9 @@ def render_catalog(
         if missing:
             raise ValueError(f"frontmatter missing required keys: {', '.join(missing)}")
         _reject_forbidden_frontmatter(frontmatter)
-        curated_region = _extract_single_region(existing_text, CURATED_START, CURATED_END, "curated")
-        _extract_single_region(existing_text, GENERATED_START, GENERATED_END, "generated")
-        _reject_unsafe_document_content(existing_text)
+        layout = _protected_layout(existing_text)
+        curated_region = _region_from_layout(existing_text, layout, "curated")
+        _reject_unsafe_document_content(existing_text, layout)
 
     frontmatter = _render_frontmatter(
         title="K1 活动索引",
@@ -176,13 +175,22 @@ def validate_topic_page(text: str, expected_page_id: str) -> tuple[str, ...]:
     if isinstance(source, str) and _source_page_id(source) != expected_page_id:
         errors.append(f"source pageId does not match expected pageId: {expected_page_id}")
 
-    for marker, label in ((CURATED_START, "curated start"), (CURATED_END, "curated end"), (GENERATED_START, "generated start"), (GENERATED_END, "generated end")):
-        if text.count(marker) != 1:
-            errors.append(f"missing or duplicated {label} marker")
-    if any(marker in text.casefold() for marker in (*_FORBIDDEN_MARKERS, "k1-activity-body")):
-        errors.append("forbidden copied-body marker")
     try:
-        generated = _extract_single_region(text, GENERATED_START, GENERATED_END, "generated")
+        layout = _protected_layout(text)
+    except ValueError as error:
+        errors.append(str(error))
+        return tuple(errors)
+    try:
+        _reject_unsafe_document_content(text, layout)
+    except ValueError as error:
+        errors.append(str(error))
+    try:
+        curated = _region_from_layout(text, layout, "curated")
+        _parse_curated(curated, frontmatter)
+    except ValueError as error:
+        errors.append(str(error))
+    try:
+        generated = _region_from_layout(text, layout, "generated")
         _parse_children(generated)
     except ValueError as error:
         errors.append(str(error))
@@ -302,14 +310,8 @@ def _render_generated(document: TopicDocument, children: tuple[ChildEntry, ...])
 
 
 def _parse_frontmatter(text: str) -> dict[str, object]:
-    if not text.startswith("---\n"):
-        raise ValueError("malformed frontmatter: opening delimiter is missing")
-    closing = text.find("\n---", 4)
-    if closing < 0:
-        raise ValueError("malformed frontmatter: closing delimiter is missing")
-    body = text[4:closing]
-    if not text[closing + 4 :].startswith("\n"):
-        raise ValueError("malformed frontmatter: closing delimiter is invalid")
+    body_start, body_end, _ = _frontmatter_bounds(text)
+    body = text[body_start:body_end]
     values: dict[str, object] = {}
     for line in body.splitlines():
         if not line or ":" not in line:
@@ -325,27 +327,63 @@ def _parse_frontmatter(text: str) -> dict[str, object]:
     return values
 
 
+def _frontmatter_bounds(text: str) -> tuple[int, int, int]:
+    opening = re.match(r"---\r?\n", text)
+    if opening is None:
+        raise ValueError("malformed frontmatter: opening delimiter is missing")
+    closing = re.search(r"\r?\n---(?=\r?\n)", text[opening.end() :])
+    if closing is None:
+        raise ValueError("malformed frontmatter: closing delimiter is missing")
+    closing_start = opening.end() + closing.start()
+    closing_end = opening.end() + closing.end()
+    return opening.end(), closing_start, closing_end
+
+
 def _extract_single_region(text: str, start: str, end: str, label: str) -> str:
-    if text.count(start) != 1 or text.count(end) != 1:
-        raise ValueError(f"missing or duplicated {label} markers")
-    start_at = text.index(start)
-    end_at = text.index(end)
-    if end_at < start_at:
-        raise ValueError(f"malformed {label} markers")
-    return text[start_at : end_at + len(end)]
+    layout = _protected_layout(text)
+    expected = (CURATED_START, CURATED_END, "curated") if label == "curated" else (GENERATED_START, GENERATED_END, "generated")
+    if (start, end, label) != expected:
+        raise ValueError("unknown protected region")
+    return _region_from_layout(text, layout, label)
 
 
-def _reject_unsafe_document_content(text: str) -> None:
+def _protected_layout(text: str) -> tuple[int, int, int, int]:
+    markers = (
+        (CURATED_START, "curated start"),
+        (CURATED_END, "curated end"),
+        (GENERATED_START, "generated start"),
+        (GENERATED_END, "generated end"),
+    )
+    positions: list[int] = []
+    for marker, label in markers:
+        if text.count(marker) != 1:
+            raise ValueError(f"missing or duplicated {label} marker")
+        positions.append(text.index(marker))
+    curated_start, curated_end, generated_start, generated_end = positions
+    if not curated_start < curated_end < generated_start < generated_end:
+        raise ValueError("malformed protected marker order")
+    return curated_start, curated_end, generated_start, generated_end
+
+
+def _region_from_layout(text: str, layout: tuple[int, int, int, int], label: str) -> str:
+    curated_start, curated_end, generated_start, generated_end = layout
+    if label == "curated":
+        return text[curated_start : curated_end + len(CURATED_END)]
+    if label == "generated":
+        return text[generated_start : generated_end + len(GENERATED_END)]
+    raise ValueError("unknown protected region")
+
+
+def _reject_unsafe_document_content(text: str, layout: tuple[int, int, int, int]) -> None:
     lowered = text.casefold()
     if any(marker in lowered for marker in (*_FORBIDDEN_MARKERS, "k1-activity-body")):
         raise ValueError("forbidden copied-body marker")
-    frontmatter_end = text.find("\n---", 4)
-    curated_start, curated_end = text.index(CURATED_START), text.index(CURATED_END) + len(CURATED_END)
-    generated_start, generated_end = text.index(GENERATED_START), text.index(GENERATED_END) + len(GENERATED_END)
+    _, _, frontmatter_end = _frontmatter_bounds(text)
+    curated_start, curated_end, generated_start, generated_end = layout
     unmanaged = (
-        text[frontmatter_end + 4 : curated_start],
-        text[curated_end:generated_start],
-        text[generated_end:],
+        text[frontmatter_end:curated_start],
+        text[curated_end + len(CURATED_END) : generated_start],
+        text[generated_end + len(GENERATED_END) :],
     )
     if any(part.strip() for part in unmanaged):
         raise ValueError("unmanaged content outside protected regions")
@@ -365,7 +403,7 @@ def _parse_curated(region: str, frontmatter: dict[str, object]) -> CuratedTopic:
 
 
 def _named_sections(content: str, names: tuple[str, ...]) -> dict[str, str]:
-    heading = re.compile(r"^## (.+)$", re.MULTILINE)
+    heading = re.compile(r"^## (.+?)\r?$", re.MULTILINE)
     matches = list(heading.finditer(content))
     found = [match.group(1) for match in matches]
     if tuple(found) != names:
@@ -373,10 +411,12 @@ def _named_sections(content: str, names: tuple[str, ...]) -> dict[str, str]:
     sections: dict[str, str] = {}
     for index, match in enumerate(matches):
         start = match.end()
-        if content[start : start + 1] == "\n":
+        if content[start : start + 2] == "\r\n":
+            start += 2
+        elif content[start : start + 1] == "\n":
             start += 1
         end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
-        sections[match.group(1)] = content[start:end].rstrip("\n")
+        sections[match.group(1)] = content[start:end].rstrip("\r\n")
     return sections
 
 
@@ -424,11 +464,11 @@ def _parse_children(region: str) -> dict[str, ChildEntry]:
 
 
 def _child_rows(region: str) -> tuple[tuple[str, ...], ...]:
-    section_start = region.find("## 子页面\n")
-    if section_start < 0:
+    section_heading = re.search(r"^## 子页面\r?\n", region, re.MULTILINE)
+    if section_heading is None:
         raise ValueError("missing descendant table")
-    section = region[section_start + len("## 子页面\n") :]
-    section = section.split("\n## ", 1)[0]
+    section = region[section_heading.end() :]
+    section = re.split(r"\r?\n## ", section, maxsplit=1)[0]
     lines = section.splitlines()
     if len(lines) < 2 or _split_row(lines[0]) != _CHILD_COLUMNS:
         raise ValueError("malformed descendant header")
@@ -449,20 +489,20 @@ def _split_row(line: str) -> tuple[str, ...]:
         raise ValueError("malformed Markdown table row")
     cells: list[str] = []
     current: list[str] = []
-    escaped = False
-    for character in line.strip()[1:-1]:
-        if escaped:
-            current.append(character)
-            escaped = False
-        elif character == "\\":
-            escaped = True
+    content = line.strip()[1:-1]
+    index = 0
+    while index < len(content):
+        character = content[index]
+        if character == "\\" and index + 1 < len(content) and content[index + 1] == "|":
+            current.append(content[index + 1])
+            index += 2
+            continue
         elif character == "|":
             cells.append("".join(current).strip())
             current = []
         else:
             current.append(character)
-    if escaped:
-        current.append("\\")
+        index += 1
     cells.append("".join(current).strip())
     return tuple(cells)
 
