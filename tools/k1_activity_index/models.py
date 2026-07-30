@@ -22,6 +22,45 @@ class CrawlSnapshot:
     children_by_parent: dict[str, tuple[str, ...]]
 
 
+@dataclass(frozen=True)
+class PageState:
+    page_id: str
+    title: str
+    status: str
+    space: str
+    version: int
+    url: str
+    parent_id: str
+    path: tuple[str, ...]
+    topic_id: str
+    wiki_updated_at: str | None
+    aliases: tuple[str, ...]
+    availability: str
+    review_needed: bool
+
+
+@dataclass(frozen=True)
+class IndexState:
+    schema_version: int
+    root_page_id: str
+    synced_at: str | None
+    pages: dict[str, PageState]
+
+    @classmethod
+    def empty(cls, root_page_id: str):
+        return cls(1, root_page_id, None, {})
+
+
+@dataclass(frozen=True)
+class ChangeSet:
+    new_ids: tuple[str, ...]
+    version_changed_ids: tuple[str, ...]
+    renamed_ids: tuple[str, ...]
+    moved_ids: tuple[str, ...]
+    missing_ids: tuple[str, ...]
+    content_ids: tuple[str, ...]
+
+
 class ConfluenceCommandError(RuntimeError):
     pass
 
