@@ -50,6 +50,16 @@ def test_missing_page_is_retained_without_body_or_credentials():
     assert "CONFLUENCE_API_TOKEN" not in payload
 
 
+def test_missing_page_is_reported_only_when_it_first_disappears():
+    first, _ = compute_next_state(IndexState.empty("root"), _snapshot([_record("100", parent_id="root")], root="root"), "first")
+    missing, first_changes = compute_next_state(first, _snapshot([], root="root"), "second")
+    still_missing, second_changes = compute_next_state(missing, _snapshot([], root="root"), "third")
+
+    assert first_changes.missing_ids == ("100",)
+    assert still_missing.pages["100"].availability == "missing-from-root"
+    assert second_changes.missing_ids == ()
+
+
 def test_changes_are_deterministically_sorted_and_track_moves_and_versions():
     previous, _ = compute_next_state(
         IndexState.empty("root"),
@@ -67,6 +77,22 @@ def test_changes_are_deterministically_sorted_and_track_moves_and_versions():
     assert changes.moved_ids == ("10",)
     assert changes.content_ids == ("10", "abc")
     assert current.pages["10"].review_needed is True
+
+
+def test_dump_state_is_stable_for_mixed_ids_and_page_insertion_order():
+    state_a, _ = compute_next_state(
+        IndexState.empty("root"),
+        _snapshot([_record("10", parent_id="root"), _record("abc", parent_id="root"), _record("2", parent_id="root")], root="root"),
+        "now",
+    )
+    state_b, _ = compute_next_state(
+        IndexState.empty("root"),
+        _snapshot([_record("2", parent_id="root"), _record("10", parent_id="root"), _record("abc", parent_id="root")], root="root"),
+        "now",
+    )
+
+    assert dump_state(state_a) == dump_state(state_b)
+    assert list(json.loads(dump_state(state_a))["pages"]) == ["10", "2", "abc"]
 
 
 def test_unavailable_and_review_mutations_preserve_metadata():

@@ -80,7 +80,8 @@ def compute_next_state(previous: IndexState, snapshot: CrawlSnapshot, synced_at:
     for page_id, old in previous.pages.items():
         if page_id not in pages:
             pages[page_id] = replace(old, availability="missing-from-root")
-            missing_ids.add(page_id)
+            if old.availability != "missing-from-root":
+                missing_ids.add(page_id)
 
     content_ids = new_ids | version_changed_ids | renamed_ids | moved_ids
     changes = ChangeSet(
