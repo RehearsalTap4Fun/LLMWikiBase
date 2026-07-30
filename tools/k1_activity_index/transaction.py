@@ -25,6 +25,7 @@ def write_batch_atomic(outputs: dict[Path, str], replace: Replace = os.replace) 
     insertion order is deliberate: callers place the state file last so it is
     never advanced ahead of the corresponding Markdown files.
     """
+    _reject_symlink_targets(outputs)
     staged: list[_StagedOutput] = []
     active_error = False
     try:
@@ -38,6 +39,13 @@ def write_batch_atomic(outputs: dict[Path, str], replace: Replace = os.replace) 
         raise
     finally:
         _cleanup(staged, suppress_errors=active_error)
+
+
+def _reject_symlink_targets(outputs: dict[Path, str]) -> None:
+    for target in outputs:
+        target_path = Path(target)
+        if target_path.is_symlink():
+            raise ValueError(f"output target is a symlink: {target_path}")
 
 
 def _stage_output(target: Path, text: str) -> _StagedOutput:

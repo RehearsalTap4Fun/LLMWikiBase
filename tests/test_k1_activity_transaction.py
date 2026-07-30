@@ -1,4 +1,5 @@
 from pathlib import Path
+import tempfile
 
 import pytest
 
@@ -39,6 +40,28 @@ def test_batch_rolls_back_after_replace_failure(tmp_path: Path):
 
     assert first.read_text(encoding="utf-8") == "old-first"
     assert second.read_text(encoding="utf-8") == "old-second"
+    assert {path.name for path in tmp_path.iterdir()} == {"first.md", "second.md"}
+
+
+def test_batch_replaces_three_targets_in_caller_order_with_state_last(tmp_path: Path):
+    topic = tmp_path / "topic.md"
+    catalog = tmp_path / "catalog.md"
+    state = tmp_path / "state.json"
+    replace_targets = []
+
+    def recording_replace(source, target):
+        replace_targets.append(Path(target))
+        Path(source).replace(target)
+
+    write_batch_atomic(
+        {topic: "new-topic", catalog: "new-catalog", state: "new-state"},
+        replace=recording_replace,
+    )
+
+    assert replace_targets == [topic, catalog, state]
+    assert topic.read_text(encoding="utf-8") == "new-topic"
+    assert catalog.read_text(encoding="utf-8") == "new-catalog"
+    assert state.read_text(encoding="utf-8") == "new-state"
 
 
 def test_batch_preflights_every_target_before_replacing_any_target(tmp_path: Path):
@@ -94,6 +117,7 @@ def test_batch_removes_new_target_when_a_later_replace_fails(tmp_path: Path):
 
     assert not catalog.exists()
     assert state.read_text(encoding="utf-8") == "old-state"
+    assert {path.name for path in tmp_path.iterdir()} == {"state.json"}
 
 
 def test_batch_recovers_when_the_injected_replace_keeps_failing(tmp_path: Path):
@@ -118,3 +142,39 @@ def test_batch_recovers_when_the_injected_replace_keeps_failing(tmp_path: Path):
 
     assert catalog.read_text(encoding="utf-8") == "old-catalog"
     assert state.read_text(encoding="utf-8") == "old-state"
+
+
+def test_batch_rejects_a_symlink_target_before_staging_or_replacing(tmp_path: Path, monkeypatch):
+    catalog = tmp_path / "catalog.md"
+    symlink_target = tmp_path / "state.json"
+    catalog.write_text("old-catalog", encoding="utf-8")
+    real_is_symlink = Path.is_symlink
+    real_mkstemp = tempfile.mkstemp
+    staging_calls = []
+    replace_targets = []
+
+    def simulated_is_symlink(path):
+        return path == symlink_target or real_is_symlink(path)
+
+    def recording_mkstemp(*args, **kwargs):
+        staging_calls.append(kwargs.get("dir"))
+        return real_mkstemp(*args, **kwargs)
+
+    def recording_replace(source, target):
+        replace_targets.append(Path(target))
+        Path(source).replace(target)
+
+    monkeypatch.setattr(Path, "is_symlink", simulated_is_symlink)
+    monkeypatch.setattr("tools.k1_activity_index.transaction.tempfile.mkstemp", recording_mkstemp)
+
+    with pytest.raises(ValueError, match="symlink"):
+        write_batch_atomic(
+            {catalog: "new-catalog", symlink_target: "new-state"},
+            replace=recording_replace,
+        )
+
+    assert staging_calls == []
+    assert replace_targets == []
+    assert catalog.read_text(encoding="utf-8") == "old-catalog"
+    assert not symlink_target.exists()
+    assert {path.name for path in tmp_path.iterdir()} == {"catalog.md"}
