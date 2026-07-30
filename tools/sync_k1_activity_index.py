@@ -18,6 +18,7 @@ from tools.k1_activity_index.confluence import (  # noqa: E402
     resolve_confluence_environment,
 )
 from tools.k1_activity_index.models import ConfluenceCommandError  # noqa: E402
+from tools.k1_activity_index.path_safety import absolute_unresolved, assert_safe_path, assert_within  # noqa: E402
 from tools.k1_activity_index.service import SyncConfig, sync_index  # noqa: E402
 
 
@@ -53,9 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     config = SyncConfig(
         root_page_id=str(arguments.root_page_id),
-        wiki_work_dir=arguments.wiki_work_dir.resolve(strict=False),
-        state_path=arguments.state_path.resolve(strict=False),
-        review_report_path=arguments.review_report_path.resolve(strict=False),
+        wiki_work_dir=absolute_unresolved(arguments.wiki_work_dir),
+        state_path=absolute_unresolved(arguments.state_path),
+        review_report_path=absolute_unresolved(arguments.review_report_path),
         child_limit=arguments.child_limit,
         dry_run=arguments.dry_run,
         validate_only=arguments.validate_only,
@@ -67,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("child limit must be greater than zero")
         if config.validate_only and config.mark_reviewed:
             raise ValueError("--mark-reviewed cannot be combined with --validate-only")
+        _validate_default_paths(arguments, config)
 
         client = None
         if not config.validate_only:
@@ -86,26 +88,41 @@ def main(argv: list[str] | None = None) -> int:
         _print_json(_success_payload(config, report))
         return 0
     except Exception as error:
+        error_code = _error_code(error)
         _print_json(
             {
                 "status": "error",
-                "error_type": type(error).__name__,
-                "message": _safe_message(error, resolved_environment),
+                "error_code": error_code,
                 "root_page_id": config.root_page_id,
                 "paths": _paths_payload(config),
             }
         )
+        print(_safe_diagnostic(error_code), file=sys.stderr)
         return 1
 
 
 def _confluence_cli_path(explicit: Path | None) -> Path:
     if explicit is not None:
-        return explicit.resolve(strict=False)
+        path = absolute_unresolved(explicit)
+        assert_safe_path(path)
+        return path
     user_profile = os.environ.get("USERPROFILE")
     profile_path = Path(user_profile) if user_profile else Path.home()
-    return (profile_path / ".skills" / "confluence" / "scripts" / "confluence.pyz").resolve(
-        strict=False
-    )
+    path = absolute_unresolved(profile_path / ".skills" / "confluence" / "scripts" / "confluence.pyz")
+    assert_safe_path(path)
+    return path
+
+
+def _validate_default_paths(arguments, config: SyncConfig) -> None:
+    defaults = {
+        "wiki_work_dir": REPOSITORY_ROOT / "wiki" / "work",
+        "state_path": REPOSITORY_ROOT / ".cache" / "k1-activity-index" / "state.json",
+        "review_report_path": REPOSITORY_ROOT / ".cache" / "k1-activity-index" / "review-report.json",
+    }
+    for name, default in defaults.items():
+        configured = Path(getattr(arguments, name))
+        if configured == default:
+            assert_within(getattr(config, name), REPOSITORY_ROOT)
 
 
 def _read_user_environment(name: str) -> str | None:
@@ -160,17 +177,40 @@ def _paths_payload(config: SyncConfig) -> dict[str, str]:
     }
 
 
-def _safe_message(error: Exception, resolved_environment: dict[str, str]) -> str:
-    message = str(error) or type(error).__name__
-    secret_values = [
-        value
-        for name in REQUIRED_ENV
-        for value in (resolved_environment.get(name), os.environ.get(name))
-        if value
-    ]
-    for value in secret_values:
-        message = message.replace(value, "***")
-    return message
+def _error_code(error: Exception) -> str:
+    if isinstance(error, ConfluenceCommandError):
+        return error.code
+    if isinstance(error, FileNotFoundError):
+        return "filesystem-error"
+    if isinstance(error, ValueError):
+        message = str(error).casefold()
+        if "state" in message:
+            return "state-invalid"
+        if "path" in message or "symlink" in message or "reparse" in message:
+            return "unsafe-path"
+        if "catalog" in message or "activity document" in message or "topic" in message:
+            return "index-invalid"
+        return "validation-error"
+    if isinstance(error, OSError):
+        return "filesystem-error"
+    return "internal-error"
+
+
+def _safe_diagnostic(error_code: str) -> str:
+    allowed = {
+        "confluence-command-failed",
+        "confluence-bridge-failed",
+        "incomplete-pagination",
+        "invalid-json",
+        "filesystem-error",
+        "state-invalid",
+        "unsafe-path",
+        "index-invalid",
+        "validation-error",
+        "internal-error",
+    }
+    safe_code = error_code if error_code in allowed else "internal-error"
+    return f"K1 activity sync failed ({safe_code})."
 
 
 def _configure_utf8_stdout() -> None:

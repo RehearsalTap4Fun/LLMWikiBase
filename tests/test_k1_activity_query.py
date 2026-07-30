@@ -19,7 +19,7 @@ from tools.k1_activity_index import query as query_module
 from tools.k1_activity_index.query import load_search_documents, search_index
 
 
-def _state(page_id, title, topic_id, parent_id):
+def _state(page_id, title, topic_id, parent_id, aliases=()):
     return PageState(
         page_id=page_id,
         title=title,
@@ -31,7 +31,7 @@ def _state(page_id, title, topic_id, parent_id):
         path=(title,),
         topic_id=topic_id,
         wiki_updated_at=None,
-        aliases=(),
+        aliases=aliases,
         availability="available",
         review_needed=False,
     )
@@ -93,6 +93,30 @@ def test_exact_topic_alias_and_child_title_have_specific_ranking(activity_index:
     child_hit = search_index(activity_index, "盛夏通行证")[0]
     assert child_hit.match_kind == "child-exact"
     assert child_hit.wiki_url.endswith("pageId=248877789")
+
+
+def test_generated_topic_and_child_rename_aliases_are_exact_and_partial_searchable(tmp_path: Path):
+    directory = tmp_path / "k1-activities"
+    directory.mkdir()
+    topic = _state("100", "K1 Topic C", "100", "73598402", aliases=("K1 Topic B",))
+    child = _state("101", "Store C", "100", "100", aliases=("Store B",))
+    child = PageState(**{**child.__dict__, "path": ("K1 Topic C", "Store C")})
+    document = TopicDocument(
+        topic=topic,
+        curated=CuratedTopic("Topic summary.", ("Topic A",), ("K1", "活动"), (), ""),
+        children=(ChildEntry(child, "商店/兑换", "Store rules."),),
+        synced_at="2026-07-29T12:00:00+08:00",
+    )
+    (directory / "k1-activity-100.md").write_text(render_topic_page(document), encoding="utf-8")
+
+    topic_hit = search_index(directory, "Topic B")[0]
+    child_hit = search_index(directory, "Store B")[0]
+    partial_hit = search_index(directory, "Store")[0]
+
+    assert topic_hit.match_kind == "alias-exact"
+    assert child_hit.match_kind == "child-alias-exact"
+    assert child_hit.child_page_id == "101"
+    assert partial_hit.child_page_id == "101"
 
 
 def test_representative_match_kinds_have_fixed_score_weights(activity_index: Path):

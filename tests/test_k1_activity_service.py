@@ -3,12 +3,14 @@ from dataclasses import replace
 from pathlib import Path
 import subprocess
 import sys
+from zipfile import ZipFile
 
 import pytest
 
 from tools.k1_activity_index.crawl import IncompleteTreeError
 from tools.k1_activity_index.models import ConfluenceCommandError, PageUnavailableError
 from tools.k1_activity_index.service import SyncConfig, sync_index
+from tools.k1_activity_index.query import search_index
 from tools.k1_activity_index.transaction import write_batch_atomic as real_write_batch_atomic
 
 
@@ -35,6 +37,7 @@ class FakeClient:
             "101": {"id": "101", "title": "主题A商店", "body": "合成商店规则。"},
         }
         self.page_calls = []
+        self.base_url = "https://wiki.example.test"
 
     def check(self):
         return None
@@ -109,8 +112,38 @@ def test_first_sync_writes_catalog_topic_state_and_review_report(tmp_path: Path)
     assert (config.wiki_work_dir / "k1-activities" / "k1-activity-100.md").exists()
     state_text = config.state_path.read_text(encoding="utf-8")
     assert "合成活动说明" not in state_text
+    assert json.loads(state_text)["complete"] is True
+    assert report.truncated is False
     report_data = json.loads(config.review_report_path.read_text(encoding="utf-8"))
     assert report_data["review_needed"] == ["100", "101"]
+    assert report_data["complete"] is True
+
+
+def test_config_reparse_ancestor_is_rejected_before_client_or_clock(tmp_path: Path, monkeypatch):
+    import os
+    from types import SimpleNamespace
+
+    config = _config(tmp_path)
+    junction = config.wiki_work_dir
+    real_lstat = os.lstat
+
+    def fake_lstat(path):
+        if Path(path) == junction:
+            return SimpleNamespace(st_mode=0o040755, st_file_attributes=0x400)
+        return real_lstat(path)
+
+    monkeypatch.setattr(os, "lstat", fake_lstat)
+
+    class ExplodingClient:
+        def __getattr__(self, name):
+            raise AssertionError(f"unsafe config accessed client attribute {name}")
+
+    with pytest.raises(ValueError, match="reparse"):
+        sync_index(
+            config,
+            ExplodingClient(),
+            lambda: (_ for _ in ()).throw(AssertionError("unsafe config called clock")),
+        )
 
 
 def test_second_sync_skips_bodies_when_versions_are_unchanged(tmp_path: Path):
@@ -170,6 +203,23 @@ def test_page_id_cannot_escape_the_configured_topic_output_root(tmp_path: Path):
 
     assert client.page_calls == []
     assert not (tmp_path / "wiki" / "outside.md").exists()
+
+
+def test_snapshot_url_must_match_configured_confluence_host_before_body_or_write(tmp_path: Path):
+    unsafe = _child("100", "K1 Unsafe")
+    unsafe["url"] = "https://evil.example.test/pages/viewpage.action?pageId=100"
+    client = FakeClient(
+        responses={
+            "73598402": {"total": 1, "results": [unsafe]},
+            "100": {"total": 0, "results": []},
+        },
+        pages={"100": {"id": "100", "title": "K1 Unsafe", "body": ""}},
+    )
+
+    with pytest.raises(ValueError, match="Confluence host"):
+        sync_index(_config(tmp_path), client, lambda: "2026-07-29T12:00:00+08:00")
+
+    assert client.page_calls == []
 
 
 @pytest.mark.parametrize(
@@ -253,6 +303,40 @@ def test_version_change_fetches_only_changed_page_and_preserves_curated_summary(
 
     assert changed_client.page_calls == ["101"]
     assert "人工确认后的主题摘要。" in topic_path.read_text(encoding="utf-8")
+
+
+def test_sync_two_renames_reload_and_find_intermediate_topic_and_child_aliases(tmp_path: Path):
+    config = _config(tmp_path)
+    sync_index(config, FakeClient(), lambda: "2026-07-29T12:00:00+08:00")
+    topic_path = config.wiki_work_dir / "k1-activities" / "k1-activity-100.md"
+    first_text = topic_path.read_text(encoding="utf-8")
+    curated_start = first_text.index("<!-- K1-ACTIVITY-CURATED:START -->")
+    curated_end = first_text.index("<!-- K1-ACTIVITY-CURATED:END -->") + len("<!-- K1-ACTIVITY-CURATED:END -->")
+    curated = first_text[curated_start:curated_end]
+
+    def renamed(topic_title, child_title, version):
+        return FakeClient(
+            responses={
+                "73598402": {"total": 1, "results": [_child("100", topic_title, version)]},
+                "100": {"total": 1, "results": [_child("101", child_title, version)]},
+                "101": {"total": 0, "results": []},
+            },
+            pages={
+                "100": {"id": "100", "title": topic_title, "body": ""},
+                "101": {"id": "101", "title": child_title, "body": ""},
+            },
+        )
+
+    sync_index(config, renamed("K1 主题B", "主题B商店", 2), lambda: "2026-07-29T13:00:00+08:00")
+    sync_index(config, renamed("K1 主题C", "主题C商店", 3), lambda: "2026-07-29T14:00:00+08:00")
+
+    reloaded = topic_path.read_text(encoding="utf-8")
+    assert reloaded[reloaded.index("<!-- K1-ACTIVITY-CURATED:START -->"):reloaded.index("<!-- K1-ACTIVITY-CURATED:END -->") + len("<!-- K1-ACTIVITY-CURATED:END -->")] == curated
+    topic_hit = search_index(topic_path.parent, "主题B")[0]
+    child_hit = search_index(topic_path.parent, "主题B商店")[0]
+    assert topic_hit.match_kind == "alias-exact"
+    assert child_hit.match_kind == "child-alias-exact"
+    assert child_hit.child_page_id == "101"
 
 
 def test_incomplete_tree_leaves_existing_outputs_unchanged(tmp_path: Path):
@@ -460,6 +544,69 @@ def test_validate_only_rejects_malformed_catalog_curated_sections(tmp_path: Path
         sync_index(_config(tmp_path, validate_only=True), None, lambda: "unused")
 
 
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    (
+        (lambda text: "\n".join(line for line in text.splitlines() if not line.startswith("| 101 |")) + "\n", "descendant"),
+        (lambda text: text.replace("pageId=101", "pageId=999", 1), "metadata"),
+        (lambda text: text.replace(' | ["K1 主题A","主题A商店"] | 1 | current |', ' | ["K1 主题A","主题A商店"] | 9 | current |', 1), "metadata"),
+    ),
+)
+def test_validate_only_reconciles_every_descendant_row(tmp_path: Path, mutation, expected):
+    config = _config(tmp_path)
+    sync_index(config, FakeClient(), lambda: "2026-07-29T12:00:00+08:00")
+    topic_path = config.wiki_work_dir / "k1-activities" / "k1-activity-100.md"
+    topic_path.write_text(mutation(topic_path.read_text(encoding="utf-8")), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=expected):
+        sync_index(_config(tmp_path, validate_only=True), None, lambda: "unused")
+
+
+def test_validate_only_rejects_cross_topic_duplicate_ownership(tmp_path: Path):
+    config = _config(tmp_path)
+    client = _two_topic_client()
+    client.responses["100"] = {"total": 1, "results": [_child("101", "Shared child")]}
+    client.responses["101"] = {"total": 0, "results": []}
+    client.pages["101"] = {"id": "101", "title": "Shared child", "body": ""}
+    sync_index(config, client, lambda: "2026-07-29T12:00:00+08:00")
+    topic_a = config.wiki_work_dir / "k1-activities" / "k1-activity-100.md"
+    topic_b = config.wiki_work_dir / "k1-activities" / "k1-activity-200.md"
+    row = next(line for line in topic_a.read_text(encoding="utf-8").splitlines() if line.startswith("| 101 |"))
+    text_b = topic_b.read_text(encoding="utf-8")
+    separator = next(line for line in text_b.splitlines() if line.startswith("| --- |") and line.count("|") > 5)
+    topic_b.write_text(text_b.replace(separator, separator + "\n" + row, 1), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="ownership|topic"):
+        sync_index(_config(tmp_path, validate_only=True), None, lambda: "unused")
+
+
+def test_validate_only_rejects_catalog_row_mismatch(tmp_path: Path):
+    config = _config(tmp_path)
+    sync_index(config, FakeClient(), lambda: "2026-07-29T12:00:00+08:00")
+    catalog = config.wiki_work_dir / "k1-activity-catalog.md"
+    catalog.write_text(catalog.read_text(encoding="utf-8").replace("| 100 |", "| 999 |", 1), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="catalog"):
+        sync_index(_config(tmp_path, validate_only=True), None, lambda: "unused")
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        lambda text: text.replace("| 版本 | 1 |", "| 版本 | 9 |", 1),
+        lambda text: text.replace("pageId=100", "pageId=999", 1),
+    ),
+)
+def test_validate_only_rejects_topic_root_version_or_url_mismatch(tmp_path: Path, mutation):
+    config = _config(tmp_path)
+    sync_index(config, FakeClient(), lambda: "2026-07-29T12:00:00+08:00")
+    topic = config.wiki_work_dir / "k1-activities" / "k1-activity-100.md"
+    topic.write_text(mutation(topic.read_text(encoding="utf-8")), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="root|source|metadata"):
+        sync_index(_config(tmp_path, validate_only=True), None, lambda: "unused")
+
+
 def test_mark_reviewed_is_rendered_and_state_is_installed_last(tmp_path: Path, monkeypatch):
     config = _config(tmp_path)
     sync_index(config, FakeClient(), lambda: "2026-07-29T12:00:00+08:00")
@@ -511,37 +658,32 @@ def test_cli_validate_only_prints_json_and_returns_explicit_status(tmp_path: Pat
     assert failure.returncode == 1
     failure_data = json.loads(failure.stdout)
     assert failure_data["status"] == "error"
-    assert str(config.state_path) in failure_data["message"]
+    assert failure_data["paths"]["state"] == str(config.state_path)
+    assert "message" not in failure_data
+    assert failure.stderr == "K1 activity sync failed (state-invalid).\n"
 
 
 def test_cli_dry_run_uses_fake_confluence_without_fetching_or_writing(
     tmp_path: Path, monkeypatch
 ):
-    fake_cli = tmp_path / "fake_confluence.py"
-    fake_cli.write_text(
-        """import json
-import sys
-
-arguments = sys.argv[1:]
-if arguments == ["check"]:
-    payload = {}
-elif arguments[:3] == ["page", "children", "73598402"]:
-    payload = {
-        "total": 1,
-        "results": [{
-            "id": "100", "title": "K1 Topic", "status": "current",
-            "space": "KEFU", "version": 1,
-            "url": "https://wiki.example.test/pages/viewpage.action?pageId=100"
-        }],
-    }
-elif arguments[:3] == ["page", "children", "100"]:
-    payload = {"total": 0, "results": []}
-else:
-    raise SystemExit("unexpected body fetch")
-print(json.dumps(payload))
-""",
-        encoding="utf-8",
-    )
+    fake_cli = tmp_path / "fake_confluence.pyz"
+    with ZipFile(fake_cli, "w") as archive:
+        archive.writestr("__main__.py", "import json\nprint(json.dumps({}))\n")
+        archive.writestr("confluence_skill/__init__.py", "")
+        archive.writestr(
+            "confluence_skill/client.py",
+            "class ConfluenceClient:\n"
+            "    def get(self, path, params=None):\n"
+            "        if '/73598402/' in path:\n"
+            "            pages = [{'id': '100', 'title': 'K1 Topic', 'status': 'current', 'space': {'key': 'KEFU'}, 'version': {'number': 1}, '_links': {'webui': '/pages/viewpage.action?pageId=100'}}]\n"
+            "        elif '/100/' in path:\n"
+            "            pages = []\n"
+            "        else:\n"
+            "            raise RuntimeError('unexpected body fetch')\n"
+            "        start, limit = params['start'], params['limit']\n"
+            "        results = pages[start:start + limit]\n"
+            "        return {'total': len(pages), 'start': start, 'limit': limit, 'size': len(results), '_links': {'base': 'https://wiki.example.test'}, 'results': results}\n",
+        )
     for name, value in {
         "CONFLUENCE_URL": "https://wiki.example.test",
         "CONFLUENCE_EMAIL": "user@example.test",
@@ -615,5 +757,9 @@ raise SystemExit(1)
     )
 
     assert result.returncode == 1
-    assert json.loads(result.stdout)["status"] == "error"
-    assert secret not in result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "error"
+    assert set(payload) == {"status", "error_code", "root_page_id", "paths"}
+    assert secret not in result.stdout + result.stderr
+    assert "Authorization:" not in result.stdout + result.stderr
+    assert "Cookie:" not in result.stdout + result.stderr

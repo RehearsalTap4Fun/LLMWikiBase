@@ -112,6 +112,7 @@ def test_state_round_trip_and_load_missing_file(tmp_path):
     assert load_state(path, "root") == IndexState.empty("root")
     state, _ = compute_next_state(IndexState.empty("root"), _snapshot([_record("10", parent_id="root")], root="root"), "now")
     path.write_text(dump_state(state), encoding="utf-8")
+    assert json.loads(path.read_text(encoding="utf-8"))["complete"] is True
 
     assert load_state(path, "root") == state
 

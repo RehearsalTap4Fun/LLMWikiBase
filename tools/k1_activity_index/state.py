@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import ChangeSet, CrawlSnapshot, IndexState, PageRecord, PageState
+from .path_safety import assert_safe_path
 
 
 _FORBIDDEN_KEYS = {"body", "content", "html", "token", "password", "api_token"}
@@ -100,7 +101,7 @@ def compute_next_state(previous: IndexState, snapshot: CrawlSnapshot, synced_at:
         missing_ids=_sorted_ids(missing_ids),
         content_ids=_sorted_ids(content_ids),
     )
-    return IndexState(1, previous.root_page_id, synced_at, pages), changes
+    return IndexState(1, previous.root_page_id, synced_at, pages, snapshot.complete), changes
 
 
 def mark_unavailable(state: IndexState, page_id: str, status_code: int) -> IndexState:
@@ -126,6 +127,7 @@ def _to_payload(state: IndexState) -> dict[str, Any]:
         "schema_version": state.schema_version,
         "root_page_id": state.root_page_id,
         "synced_at": state.synced_at,
+        "complete": state.complete,
         "pages": {
             page_id: {
                 "page_id": page.page_id,
@@ -167,6 +169,7 @@ def dump_state(state: IndexState) -> str:
 def load_state(path: str | Path, root_page_id: str) -> IndexState:
     """Load a state file, returning a fresh v1 state if it does not yet exist."""
     state_path = Path(path)
+    assert_safe_path(state_path)
     if not state_path.exists():
         return IndexState.empty(root_page_id)
 
@@ -186,4 +189,7 @@ def load_state(path: str | Path, root_page_id: str) -> IndexState:
         )
         for page_id, data in payload["pages"].items()
     }
-    return IndexState(1, root_page_id, payload.get("synced_at"), pages)
+    complete = payload.get("complete", False)
+    if not isinstance(complete, bool):
+        raise ValueError("state complete flag must be boolean")
+    return IndexState(1, root_page_id, payload.get("synced_at"), pages, complete)

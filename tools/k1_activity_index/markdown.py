@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 import json
 import re
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from .models import PageState
 from .semantics import normalize_label
@@ -31,16 +31,31 @@ _HISTORICAL_WORDS = ("历史", "过期", "废弃", "删除", "旧", "historical"
 _CHILD_COLUMNS = (
     "pageId",
     "标题",
+    "层级路径",
     "版本",
     "状态",
     "角色",
     "摘要",
     "topicId",
     "父页面 ID",
-    "旧标题",
+    "别名",
     "可访问性",
     "需要复核",
     "Wiki 更新时间",
+    "回源",
+)
+_CATALOG_COLUMNS = (
+    "pageId",
+    "主题",
+    "别名",
+    "本地页面",
+    "摘要",
+    "机制标签",
+    "状态",
+    "可访问性",
+    "后代数",
+    "根版本",
+    "同步时间",
     "回源",
 )
 
@@ -73,9 +88,28 @@ class TopicDocument:
 class ParsedTopic:
     curated: CuratedTopic
     children: dict[str, ChildEntry]
+    root: PageState
+    synced_at: str
+    descendant_count: int
 
 
-def parse_topic_page(text: str) -> ParsedTopic:
+@dataclass(frozen=True)
+class CatalogEntry:
+    page_id: str
+    title: str
+    aliases: tuple[str, ...]
+    local_wikilink: str
+    summary: str
+    mechanism_tags: tuple[str, ...]
+    status: str
+    availability: str
+    descendant_count: int
+    version: int
+    synced_at: str
+    url: str
+
+
+def parse_topic_page(text: str, *, allow_legacy: bool = False) -> ParsedTopic:
     """Parse a generated topic page without accepting unsafe partial documents."""
     layout = _protected_layout(text)
     curated_region = _region_from_layout(text, layout, "curated")
@@ -86,8 +120,65 @@ def parse_topic_page(text: str) -> ParsedTopic:
     if missing:
         raise ValueError(f"frontmatter missing required keys: {', '.join(missing)}")
     _reject_forbidden_frontmatter(frontmatter)
+    frontmatter_errors = _frontmatter_errors(frontmatter)
+    if frontmatter_errors:
+        raise ValueError(frontmatter_errors[0])
     curated = _parse_curated(curated_region, frontmatter)
-    return ParsedTopic(curated=curated, children=_parse_children(generated_region))
+    children = _parse_children(generated_region, allow_legacy=allow_legacy)
+    root, synced_at, descendant_count = _parse_root(
+        generated_region,
+        frontmatter,
+        children,
+        allow_legacy=allow_legacy,
+    )
+    _validate_topic_urls(root, children, source_url=frontmatter.get("source"))
+    return ParsedTopic(
+        curated=curated,
+        children=children,
+        root=root,
+        synced_at=synced_at,
+        descendant_count=descendant_count,
+    )
+
+
+def parse_existing_topic_page(text: str) -> ParsedTopic:
+    """Parse current output strictly, allowing only the one known pre-model schema for migration."""
+    try:
+        return parse_topic_page(text)
+    except ValueError:
+        if "| 旧标题 |" not in text or "| 层级路径 |" in text:
+            raise
+        return parse_topic_page(text, allow_legacy=True)
+
+
+def parse_catalog_page(text: str) -> dict[str, CatalogEntry]:
+    frontmatter = _parse_frontmatter(text)
+    errors = _frontmatter_errors(frontmatter)
+    if errors:
+        raise ValueError(errors[0])
+    source = frontmatter.get("source")
+    if not isinstance(source, str):
+        raise ValueError("catalog source URL is invalid")
+    root_host = _validate_confluence_url(source, _source_page_id(source), label="catalog source URL")
+    layout = _protected_layout(text)
+    _reject_unsafe_document_content(text, layout)
+    generated = _region_from_layout(text, layout, "generated")
+    content = generated[len(GENERATED_START) : -len(GENERATED_END)].strip("\r\n")
+    sections = _named_sections(content, ("索引元数据", "当前可用", "历史/过期", "不可访问"))
+    entries: dict[str, CatalogEntry] = {}
+    for name in ("当前可用", "历史/过期", "不可访问"):
+        for row in _table_rows(sections[name], _CATALOG_COLUMNS):
+            entry = _catalog_entry(row)
+            if entry.page_id in entries:
+                raise ValueError(f"duplicate catalog pageId: {entry.page_id}")
+            _validate_confluence_url(
+                entry.url,
+                entry.page_id,
+                expected_host=root_host,
+                label="catalog row URL",
+            )
+            entries[entry.page_id] = entry
+    return entries
 
 
 def render_topic_page(document: TopicDocument, existing_text: str | None = None) -> str:
@@ -96,7 +187,7 @@ def render_topic_page(document: TopicDocument, existing_text: str | None = None)
         curated_region = _render_curated(document.curated)
         previous_children: dict[str, ChildEntry] = {}
     else:
-        parsed = parse_topic_page(existing_text)
+        parsed = parse_existing_topic_page(existing_text)
         curated_region = _extract_single_region(existing_text, CURATED_START, CURATED_END, "curated")
         previous_children = parsed.children
 
@@ -119,9 +210,6 @@ def render_catalog(
     if existing_text is None:
         curated_region = _render_catalog_curated()
     else:
-        errors = validate_catalog_page(existing_text)
-        if errors:
-            raise ValueError(f"invalid existing catalog: {'; '.join(errors)}")
         frontmatter = _parse_frontmatter(existing_text)
         missing = tuple(key for key in _REQUIRED_FRONTMATTER if key not in frontmatter)
         if missing:
@@ -133,7 +221,7 @@ def render_catalog(
 
     frontmatter = _render_frontmatter(
         title="K1 活动索引",
-        source="Confluence K1 activity root",
+        source=_catalog_root_url(documents),
         synced_at=synced_at,
         confidence="medium",
         tags=("K1", "活动", "Confluence"),
@@ -146,15 +234,28 @@ def render_catalog(
     )
     lines = [GENERATED_START, "## 索引元数据", f"- 同步时间：{_cell(synced_at)}", ""]
     for heading, group in groups:
-        lines.extend((f"## {heading}", "| pageId | 主题 | 摘要 | 回源 |", "| --- | --- | --- | --- |"))
+        lines.extend((f"## {heading}", "| " + " | ".join(_CATALOG_COLUMNS) + " |", "| " + " | ".join("---" for _ in _CATALOG_COLUMNS) + " |"))
         for document in sorted(group, key=lambda item: _page_key(item.topic)):
             lines.append(
-                "| {page_id} | {title} | {summary} | {url} |".format(
-                    page_id=_cell(document.topic.page_id),
-                    title=_cell(document.topic.title),
-                    summary=_cell(document.curated.summary),
-                    url=_cell(document.topic.url),
+                "| "
+                + " | ".join(
+                    _cell(value)
+                    for value in (
+                        document.topic.page_id,
+                        document.topic.title,
+                        _json_list(tuple(dict.fromkeys((*document.curated.aliases, *document.topic.aliases)))),
+                        f"[[k1-activity-{document.topic.page_id}]]",
+                        document.curated.summary,
+                        _json_list(_mechanism_tags(document.curated.tags)),
+                        document.topic.status,
+                        document.topic.availability,
+                        str(len(document.children)),
+                        str(document.topic.version),
+                        synced_at,
+                        document.topic.url,
+                    )
                 )
+                + " |"
             )
         lines.append("")
     lines.append(GENERATED_END)
@@ -175,9 +276,13 @@ def validate_topic_page(text: str, expected_page_id: str) -> tuple[str, ...]:
     for key in frontmatter:
         if key.casefold() in _FORBIDDEN_FRONTMATTER:
             errors.append(f"forbidden frontmatter key: {key}")
+    errors.extend(_frontmatter_errors(frontmatter))
     source = frontmatter.get("source")
-    if isinstance(source, str) and _source_page_id(source) != expected_page_id:
-        errors.append(f"source pageId does not match expected pageId: {expected_page_id}")
+    if isinstance(source, str):
+        try:
+            _validate_confluence_url(source, expected_page_id, label="source URL")
+        except ValueError as error:
+            errors.append(str(error))
 
     try:
         layout = _protected_layout(text)
@@ -195,10 +300,19 @@ def validate_topic_page(text: str, expected_page_id: str) -> tuple[str, ...]:
         errors.append(str(error))
     try:
         generated = _region_from_layout(text, layout, "generated")
-        _parse_children(generated)
+        children = _parse_children(generated)
+        root, _, descendant_count = _parse_root(generated, frontmatter, children)
+        if root.page_id != expected_page_id:
+            errors.append(f"root pageId does not match expected pageId: {expected_page_id}")
+        if descendant_count != len(children):
+            errors.append("descendant count does not match descendant rows")
     except ValueError as error:
         errors.append(str(error))
         return tuple(errors)
+    try:
+        _validate_topic_urls(root, children, source_url=source)
+    except ValueError as error:
+        errors.append(str(error))
 
     seen: set[str] = set()
     for row in _child_rows(generated):
@@ -206,7 +320,7 @@ def validate_topic_page(text: str, expected_page_id: str) -> tuple[str, ...]:
         if page_id in seen:
             errors.append(f"duplicate descendant pageId: {page_id}")
         seen.add(page_id)
-        if len(row) > 6 and row[6] != expected_page_id:
+        if len(row) > 7 and row[7] != expected_page_id:
             errors.append(f"descendant topic ID differs from root: {page_id}")
     return tuple(errors)
 
@@ -224,6 +338,7 @@ def validate_catalog_page(text: str) -> tuple[str, ...]:
     for key in frontmatter:
         if key.casefold() in _FORBIDDEN_FRONTMATTER:
             errors.append(f"forbidden frontmatter key: {key}")
+    errors.extend(_frontmatter_errors(frontmatter))
     try:
         layout = _protected_layout(text)
     except ValueError as error:
@@ -250,6 +365,11 @@ def validate_catalog_page(text: str) -> tuple[str, ...]:
         )
     except ValueError as error:
         errors.append(f"malformed catalog generated sections: {error}")
+    if not errors:
+        try:
+            parse_catalog_page(text)
+        except ValueError as error:
+            errors.append(f"malformed catalog rows: {error}")
     return tuple(errors)
 
 
@@ -314,14 +434,20 @@ def _render_generated(document: TopicDocument, children: tuple[ChildEntry, ...])
         "| 字段 | 值 |",
         "| --- | --- |",
         f"| 根页面 ID | {_cell(topic.page_id)} |",
+        f"| 标题 | {_cell(topic.title)} |",
         f"| 主题 ID | {_cell(topic.topic_id)} |",
+        f"| 父页面 ID | {_cell(topic.parent_id)} |",
+        f"| 层级路径 | {_cell(_json_list(topic.path))} |",
+        f"| 版本 | {_cell(topic.version)} |",
         f"| Space | {_cell(topic.space)} |",
         f"| 状态 | {_cell(topic.status)} |",
         f"| 可访问性 | {_cell(topic.availability)} |",
         f"| Wiki 更新时间 | {_cell(topic.wiki_updated_at or '未知')} |",
         f"| 同步时间 | {_cell(document.synced_at)} |",
         f"| 需要复核 | {_yes_no(topic.review_needed)} |",
-        f"| 旧标题 | {_cell('；'.join(topic.aliases) or '无')} |",
+        f"| 别名 | {_cell(_json_list(topic.aliases))} |",
+        f"| 回源 URL | {_cell(topic.url)} |",
+        f"| 后代页面数 | {len(children)} |",
         "",
         "## 子页面",
         "| " + " | ".join(_CHILD_COLUMNS) + " |",
@@ -336,13 +462,14 @@ def _render_generated(document: TopicDocument, children: tuple[ChildEntry, ...])
                 for value in (
                     page.page_id,
                     page.title,
+                    _json_list(page.path),
                     str(page.version),
                     page.status,
                     child.role,
                     child.summary,
                     page.topic_id,
                     page.parent_id,
-                    "；".join(page.aliases) or "无",
+                    _json_list(page.aliases),
                     page.availability,
                     _yes_no(page.review_needed),
                     page.wiki_updated_at or "未知",
@@ -475,12 +602,34 @@ def _parse_bullets(value: str, label: str) -> tuple[str, ...]:
     return tuple(line[2:] for line in lines)
 
 
-def _parse_children(region: str) -> dict[str, ChildEntry]:
+def _parse_children(region: str, *, allow_legacy: bool = False) -> dict[str, ChildEntry]:
     children: dict[str, ChildEntry] = {}
-    for row in _child_rows(region):
-        if len(row) != len(_CHILD_COLUMNS):
+    for row in _child_rows(region, allow_legacy=allow_legacy):
+        if len(row) == len(_CHILD_COLUMNS):
+            (
+                page_id,
+                title,
+                encoded_path,
+                version,
+                status,
+                role,
+                summary,
+                topic_id,
+                parent_id,
+                encoded_aliases,
+                availability,
+                review,
+                updated_at,
+                url,
+            ) = row
+            path = _decode_string_list(encoded_path, "descendant path")
+            aliases = _decode_string_list(encoded_aliases, "descendant aliases")
+        elif allow_legacy and len(row) == 13:
+            page_id, title, version, status, role, summary, topic_id, parent_id, legacy_aliases, availability, review, updated_at, url = row
+            path = (title,)
+            aliases = () if legacy_aliases == "无" else tuple(legacy_aliases.split("；"))
+        else:
             raise ValueError("malformed descendant row")
-        page_id, title, version, status, role, summary, topic_id, parent_id, aliases, availability, review, updated_at, url = row
         if page_id in children:
             raise ValueError(f"duplicate descendant pageId: {page_id}")
         try:
@@ -496,10 +645,10 @@ def _parse_children(region: str) -> dict[str, ChildEntry]:
                 version=page_version,
                 url=url,
                 parent_id=parent_id,
-                path=(title,),
+                path=path,
                 topic_id=topic_id,
                 wiki_updated_at=None if updated_at == "未知" else updated_at,
-                aliases=() if aliases == "无" else tuple(aliases.split("；")),
+                aliases=aliases,
                 availability=availability,
                 review_needed=review == "是",
             ),
@@ -509,14 +658,19 @@ def _parse_children(region: str) -> dict[str, ChildEntry]:
     return children
 
 
-def _child_rows(region: str) -> tuple[tuple[str, ...], ...]:
+def _child_rows(region: str, *, allow_legacy: bool = False) -> tuple[tuple[str, ...], ...]:
     section_heading = re.search(r"^## 子页面\r?\n", region, re.MULTILINE)
     if section_heading is None:
         raise ValueError("missing descendant table")
     section = region[section_heading.end() :]
     section = re.split(r"\r?\n## ", section, maxsplit=1)[0]
     lines = section.splitlines()
-    if len(lines) < 2 or _split_row(lines[0]) != _CHILD_COLUMNS:
+    header = _split_row(lines[0]) if lines else ()
+    legacy_columns = tuple(column for column in _CHILD_COLUMNS if column != "层级路径")
+    legacy_columns = tuple("旧标题" if column == "别名" else column for column in legacy_columns)
+    if len(lines) < 2 or (
+        header != _CHILD_COLUMNS and not (allow_legacy and header == legacy_columns)
+    ):
         raise ValueError("malformed descendant header")
     if not lines[1].startswith("|"):
         raise ValueError("malformed descendant separator")
@@ -528,6 +682,103 @@ def _child_rows(region: str) -> tuple[tuple[str, ...], ...]:
             raise ValueError("malformed descendant row")
         rows.append(_split_row(line))
     return tuple(rows)
+
+
+def _parse_root(
+    region: str,
+    frontmatter: dict[str, object],
+    children: dict[str, ChildEntry],
+    *,
+    allow_legacy: bool = False,
+) -> tuple[PageState, str, int]:
+    table = _root_table(region)
+    required = (
+        "根页面 ID",
+        "标题",
+        "主题 ID",
+        "父页面 ID",
+        "层级路径",
+        "版本",
+        "Space",
+        "状态",
+        "可访问性",
+        "Wiki 更新时间",
+        "同步时间",
+        "需要复核",
+        "别名",
+        "回源 URL",
+        "后代页面数",
+    )
+    if not allow_legacy and tuple(table) != required:
+        raise ValueError("malformed root metadata")
+    if allow_legacy and not all(key in table for key in ("根页面 ID", "主题 ID", "Space", "状态", "可访问性", "同步时间", "需要复核")):
+        raise ValueError("malformed root metadata")
+    title = table.get("标题", frontmatter.get("title"))
+    url = table.get("回源 URL", frontmatter.get("source"))
+    if not isinstance(title, str) or not isinstance(url, str):
+        raise ValueError("malformed root metadata")
+    page_id = table["根页面 ID"]
+    try:
+        version = int(table.get("版本", "0"))
+        descendant_count = int(table.get("后代页面数", str(len(children))))
+    except ValueError as error:
+        raise ValueError("malformed root metadata integer") from error
+    if version < 1 and not allow_legacy:
+        raise ValueError("malformed root metadata version")
+    path = (
+        _decode_string_list(table["层级路径"], "root path")
+        if "层级路径" in table
+        else (title,)
+    )
+    aliases = (
+        _decode_string_list(table["别名"], "root aliases")
+        if "别名" in table
+        else (() if table.get("旧标题", "无") == "无" else tuple(table["旧标题"].split("；")))
+    )
+    updated_at = table.get("Wiki 更新时间", "未知")
+    root = PageState(
+        page_id=page_id,
+        title=title,
+        status=table["状态"],
+        space=table["Space"],
+        version=version,
+        url=url,
+        parent_id=table.get("父页面 ID", ""),
+        path=path,
+        topic_id=table["主题 ID"],
+        wiki_updated_at=None if updated_at == "未知" else updated_at,
+        aliases=aliases,
+        availability=table["可访问性"],
+        review_needed=_parse_yes_no(table["需要复核"]),
+    )
+    return root, table["同步时间"], descendant_count
+
+
+def _root_table(region: str) -> dict[str, str]:
+    heading = re.search(r"^## 根页面元数据\r?\n", region, re.MULTILINE)
+    if heading is None:
+        raise ValueError("missing root metadata")
+    section = re.split(r"\r?\n## ", region[heading.end() :], maxsplit=1)[0]
+    rows = _table_rows(section, ("字段", "值"))
+    table: dict[str, str] = {}
+    for key, value in rows:
+        if key in table:
+            raise ValueError(f"duplicate root metadata field: {key}")
+        table[key] = value
+    return table
+
+
+def _table_rows(section: str, header: tuple[str, ...]) -> tuple[tuple[str, ...], ...]:
+    lines = [line for line in section.splitlines() if line.strip()]
+    if len(lines) < 2 or _split_row(lines[0]) != header:
+        raise ValueError("malformed Markdown table header")
+    separator = _split_row(lines[1])
+    if len(separator) != len(header) or any(cell != "---" for cell in separator):
+        raise ValueError("malformed Markdown table separator")
+    rows = tuple(_split_row(line) for line in lines[2:])
+    if any(len(row) != len(header) for row in rows):
+        raise ValueError("malformed Markdown table row")
+    return rows
 
 
 def _split_row(line: str) -> tuple[str, ...]:
@@ -544,13 +795,21 @@ def _split_row(line: str) -> tuple[str, ...]:
             index += 2
             continue
         elif character == "|":
-            cells.append("".join(current).strip())
+            cells.append(_trim_table_padding("".join(current)))
             current = []
         else:
             current.append(character)
         index += 1
-    cells.append("".join(current).strip())
+    cells.append(_trim_table_padding("".join(current)))
     return tuple(cells)
+
+
+def _trim_table_padding(value: str) -> str:
+    if value.startswith(" "):
+        value = value[1:]
+    if value.endswith(" "):
+        value = value[:-1]
+    return value
 
 
 def _preserved_children(children: tuple[ChildEntry, ...], previous: dict[str, ChildEntry]) -> tuple[ChildEntry, ...]:
@@ -590,7 +849,183 @@ def _date_part(timestamp: str) -> str:
 
 
 def _source_page_id(source: str) -> str | None:
-    return parse_qs(urlparse(source).query).get("pageId", [None])[0]
+    values = [value for key, value in parse_qsl(urlparse(source).query, keep_blank_values=True) if key == "pageId"]
+    return values[0] if len(values) == 1 else None
+
+
+def _frontmatter_errors(frontmatter: dict[str, object]) -> tuple[str, ...]:
+    errors: list[str] = []
+    if not isinstance(frontmatter.get("title"), str) or not str(frontmatter.get("title", "")).strip():
+        errors.append("frontmatter title must be a non-empty string")
+    if frontmatter.get("type") != "source-summary":
+        errors.append("frontmatter type must be source-summary")
+    if frontmatter.get("domain") != "work":
+        errors.append("frontmatter domain must be work")
+    if frontmatter.get("confidence") not in {"high", "medium", "low"}:
+        errors.append("frontmatter confidence is invalid")
+    encoded_date = frontmatter.get("date")
+    if not isinstance(encoded_date, str):
+        errors.append("frontmatter date must be an ISO date string")
+    else:
+        try:
+            parsed_date = date.fromisoformat(encoded_date)
+            if parsed_date.isoformat() != encoded_date:
+                raise ValueError
+        except ValueError:
+            errors.append("frontmatter date must be an ISO date string")
+    source = frontmatter.get("source")
+    if not isinstance(source, str) or not source:
+        errors.append("frontmatter source must be a non-empty string")
+    for key in ("tags", "links"):
+        value = frontmatter.get(key)
+        if not isinstance(value, list) or any(not isinstance(item, str) or "\n" in item or "\r" in item for item in value):
+            errors.append(f"frontmatter {key} must be a string list")
+    links = frontmatter.get("links")
+    if isinstance(links, list) and all(isinstance(item, str) for item in links):
+        if any(re.fullmatch(r"\[\[[^\[\]\r\n|()]+\]\]", link) is None for link in links):
+            errors.append("frontmatter links contain an unsafe wikilink")
+    return tuple(errors)
+
+
+def _validate_confluence_url(
+    url: str,
+    expected_page_id: str | None,
+    *,
+    expected_host: str | None = None,
+    label: str,
+) -> str:
+    parsed = urlparse(url)
+    if (
+        parsed.scheme.casefold() != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+        or parsed.path != "/pages/viewpage.action"
+    ):
+        raise ValueError(f"{label} is not a safe HTTPS Confluence URL")
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise ValueError(f"{label} is not a safe HTTPS Confluence URL") from error
+    if port not in (None, 443):
+        raise ValueError(f"{label} is not a safe HTTPS Confluence URL")
+    pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    if expected_page_id is None or pairs != [("pageId", expected_page_id)]:
+        if label == "source URL":
+            raise ValueError("source pageId is missing, duplicated, or mismatched (source URL)")
+        raise ValueError(f"{label} pageId is missing, duplicated, or mismatched")
+    host = parsed.hostname.casefold().rstrip(".")
+    if expected_host is not None and host != expected_host:
+        raise ValueError(f"{label} differs from the configured Confluence host")
+    return host
+
+
+def _validate_topic_urls(
+    root: PageState,
+    children: dict[str, ChildEntry],
+    *,
+    source_url: object = None,
+) -> None:
+    host = _validate_confluence_url(root.url, root.page_id, label="source URL")
+    if source_url is not None:
+        if not isinstance(source_url, str):
+            raise ValueError("source URL is invalid")
+        source_host = _validate_confluence_url(source_url, root.page_id, label="source URL")
+        if source_host != host or source_url != root.url:
+            raise ValueError("source URL differs from the configured Confluence host or root URL")
+    for child in children.values():
+        _validate_confluence_url(
+            child.page.url,
+            child.page.page_id,
+            expected_host=host,
+            label="descendant metadata URL",
+        )
+
+
+def _catalog_root_url(documents: tuple[TopicDocument, ...]) -> str:
+    if not documents:
+        raise ValueError("cannot render catalog without a Confluence host")
+    parsed = urlparse(documents[0].topic.url)
+    host = _validate_confluence_url(
+        documents[0].topic.url,
+        documents[0].topic.page_id,
+        label="catalog topic URL",
+    )
+    for document in documents[1:]:
+        _validate_confluence_url(
+            document.topic.url,
+            document.topic.page_id,
+            expected_host=host,
+            label="catalog topic URL",
+        )
+    return urlunparse(("https", parsed.netloc, "/pages/viewpage.action", "", urlencode({"pageId": "73598402"}), ""))
+
+
+def _catalog_entry(row: tuple[str, ...]) -> CatalogEntry:
+    (
+        page_id,
+        title,
+        encoded_aliases,
+        local_wikilink,
+        summary,
+        encoded_tags,
+        status,
+        availability,
+        descendant_count,
+        version,
+        synced_at,
+        url,
+    ) = row
+    if local_wikilink != f"[[k1-activity-{page_id}]]":
+        raise ValueError(f"catalog local wikilink mismatches pageId: {page_id}")
+    try:
+        parsed_count = int(descendant_count)
+        parsed_version = int(version)
+    except ValueError as error:
+        raise ValueError("catalog count/version is malformed") from error
+    if parsed_count < 0 or parsed_version < 1:
+        raise ValueError("catalog count/version is malformed")
+    return CatalogEntry(
+        page_id=page_id,
+        title=title,
+        aliases=_decode_string_list(encoded_aliases, "catalog aliases"),
+        local_wikilink=local_wikilink,
+        summary=summary,
+        mechanism_tags=_decode_string_list(encoded_tags, "catalog mechanism tags"),
+        status=status,
+        availability=availability,
+        descendant_count=parsed_count,
+        version=parsed_version,
+        synced_at=synced_at,
+        url=url,
+    )
+
+
+def _mechanism_tags(tags: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(tag for tag in tags if tag not in {"K1", "活动", "历史"})
+
+
+def _json_list(values) -> str:
+    return json.dumps(list(values), ensure_ascii=False, separators=(",", ":"))
+
+
+def _decode_string_list(value: str, label: str) -> tuple[str, ...]:
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"malformed {label}") from error
+    if not isinstance(decoded, list) or any(not isinstance(item, str) for item in decoded):
+        raise ValueError(f"malformed {label}")
+    return tuple(decoded)
+
+
+def _parse_yes_no(value: str) -> bool:
+    if value == "是":
+        return True
+    if value == "否":
+        return False
+    raise ValueError("malformed review flag")
 
 
 def _reject_forbidden_frontmatter(frontmatter: dict[str, object]) -> None:

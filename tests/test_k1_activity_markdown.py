@@ -6,6 +6,7 @@ from tools.k1_activity_index.markdown import (
     ChildEntry,
     CuratedTopic,
     TopicDocument,
+    parse_catalog_page,
     parse_topic_page,
     render_catalog,
     render_topic_page,
@@ -34,7 +35,11 @@ def _state(page_id, title, topic_id="100", parent_id="73598402", availability="a
 
 def _document(page_id="100", title="K1 主题A", availability="available"):
     topic = _state(page_id, title, topic_id=page_id, availability=availability)
-    child = _state("101" + page_id, "主题A商店", topic_id=page_id, parent_id=page_id)
+    child = replace(
+        _state("101" + page_id, "主题A商店", topic_id=page_id, parent_id=page_id),
+        path=(title, "主题A商店"),
+        aliases=("旧商店名",),
+    )
     return TopicDocument(
         topic=topic,
         curated=CuratedTopic(
@@ -60,6 +65,13 @@ def test_rendered_page_has_required_frontmatter_and_no_body():
     assert "活动涉及服务器" not in rendered
     assert "3320214" not in rendered
     assert "Wiki 更新时间 | 未知" in rendered
+    assert "| 版本 | 1 |" in rendered
+    assert "| 后代页面数 | 1 |" in rendered
+    parsed = parse_topic_page(rendered)
+    assert parsed.root.version == 1
+    assert parsed.root.path == ("K1 主题A",)
+    assert parsed.children["101100"].page.path == ("K1 主题A", "主题A商店")
+    assert parsed.children["101100"].page.aliases == ("旧商店名",)
 
 
 def test_existing_curated_region_survives_rerender_byte_for_byte():
@@ -153,6 +165,17 @@ def test_backslashes_in_child_summary_round_trip_and_survive_rerender():
     assert summary in rerendered
 
 
+def test_child_title_trailing_nonbreaking_space_round_trips_exactly():
+    child = replace(
+        _document().children[0],
+        page=replace(_document().children[0].page, title="联盟争霸赛活动\u00a0"),
+    )
+
+    parsed = parse_topic_page(render_topic_page(replace(_document(), children=(child,))))
+
+    assert parsed.children[child.page.page_id].page.title == "联盟争霸赛活动\u00a0"
+
+
 def test_render_escapes_markdown_table_cells_and_sorts_descendants():
     left = ChildEntry(_state("b", "B\n标题", topic_id="100", parent_id="100"), "角色|一", "摘要\n第二行")
     right = ChildEntry(_state("a", "A", topic_id="100", parent_id="100"), "角色", "摘要")
@@ -230,3 +253,58 @@ def test_catalog_groups_historical_and_inaccessible_topics_and_preserves_intro()
         "<!-- K1-ACTIVITY-CURATED:END -->",
     )
     assert 'confidence: "low"' in render_topic_page(historical)
+    parsed = parse_catalog_page(rerendered)
+    assert parsed["100"].aliases == ("主题A", "旧标题")
+    assert parsed["100"].local_wikilink == "[[k1-activity-100]]"
+    assert parsed["100"].mechanism_tags == ("商店/兑换",)
+    assert parsed["100"].availability == "available"
+    assert parsed["100"].status == "current"
+    assert parsed["100"].descendant_count == 1
+    assert parsed["100"].synced_at == "2026-07-30T12:00:00+08:00"
+
+
+@pytest.mark.parametrize(
+    ("line_prefix", "replacement", "expected_error"),
+    (
+        ("type:", 'type: "concept"', "frontmatter type"),
+        ("domain:", 'domain: "gaming"', "frontmatter domain"),
+        ("confidence:", 'confidence: "certain"', "frontmatter confidence"),
+        ("date:", 'date: "2026-02-30"', "frontmatter date"),
+        ("tags:", 'tags: "K1"', "frontmatter tags"),
+        ("links:", 'links: [1]', "frontmatter links"),
+    ),
+)
+def test_frontmatter_validation_is_strict(line_prefix, replacement, expected_error):
+    page = render_topic_page(_document())
+    old_line = next(line for line in page.splitlines() if line.startswith(line_prefix))
+
+    errors = validate_topic_page(page.replace(old_line, replacement, 1), "100")
+
+    assert any(expected_error in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "unsafe_source",
+    (
+        "http://wiki.example.test/pages/viewpage.action?pageId=100",
+        "https://user@wiki.example.test/pages/viewpage.action?pageId=100",
+        "https://wiki.example.test/pages/viewpage.action?pageId=100#fragment",
+        "https://wiki.example.test/pages/viewpage.action?pageId=100&pageId=100",
+        "https://evil.example.test/pages/viewpage.action?pageId=100",
+    ),
+)
+def test_topic_validation_rejects_unsafe_or_mismatched_markdown_destinations(unsafe_source):
+    page = render_topic_page(_document())
+    source = 'https://wiki.example.test/pages/viewpage.action?pageId=100'
+    if "evil.example" in unsafe_source:
+        malformed = page.replace(
+            source,
+            unsafe_source,
+            1,
+        )
+    else:
+        malformed = page.replace(source, unsafe_source)
+
+    errors = validate_topic_page(malformed, "100")
+
+    assert any("source URL" in error or "Confluence host" in error for error in errors)

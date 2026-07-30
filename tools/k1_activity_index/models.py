@@ -20,6 +20,7 @@ class CrawlSnapshot:
     root_page_id: str
     pages: dict[str, PageRecord]
     children_by_parent: dict[str, tuple[str, ...]]
+    complete: bool = True
 
 
 @dataclass(frozen=True)
@@ -45,10 +46,11 @@ class IndexState:
     root_page_id: str
     synced_at: str | None
     pages: dict[str, PageState]
+    complete: bool = False
 
     @classmethod
     def empty(cls, root_page_id: str):
-        return cls(1, root_page_id, None, {})
+        return cls(1, root_page_id, None, {}, False)
 
 
 @dataclass(frozen=True)
@@ -62,7 +64,9 @@ class ChangeSet:
 
 
 class ConfluenceCommandError(RuntimeError):
-    pass
+    def __init__(self, message: str = "Confluence command failed", *, code: str = "confluence-command-failed"):
+        self.code = code
+        super().__init__(message)
 
 
 class PageUnavailableError(ConfluenceCommandError):

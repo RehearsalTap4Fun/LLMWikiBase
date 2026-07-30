@@ -20,6 +20,8 @@ def crawl_tree(reader, root_page_id: str, limit: int = 1000) -> CrawlSnapshot:
         parent_id, parent_path, inherited_topic_id = queue.popleft()
         response = reader.children(parent_id, limit)
         results = response.get("results", [])
+        if response.get("complete", response.get("total") == len(results)) is not True:
+            raise IncompleteTreeError(f"Child listing for {parent_id} is not complete")
         if response.get("total") != len(results):
             raise IncompleteTreeError(
                 f"Child listing for {parent_id} returned "
@@ -30,6 +32,8 @@ def crawl_tree(reader, root_page_id: str, limit: int = 1000) -> CrawlSnapshot:
         for raw in results:
             page_id = str(raw["id"])
             if page_id in pages:
+                if page_id in {parent_id, *parent_path_ids(parent_id, pages)}:
+                    raise InvalidTreeError(f"Page {page_id} forms a cycle")
                 raise InvalidTreeError(f"Page {page_id} has multiple parents")
             path = parent_path + (raw["title"],)
             topic_id = page_id if parent_id == root_page_id else inherited_topic_id
@@ -50,4 +54,13 @@ def crawl_tree(reader, root_page_id: str, limit: int = 1000) -> CrawlSnapshot:
             queue.append((page_id, path, topic_id))
         children_by_parent[parent_id] = tuple(child_ids)
 
-    return CrawlSnapshot(root_page_id, pages, children_by_parent)
+    return CrawlSnapshot(root_page_id, pages, children_by_parent, complete=True)
+
+
+def parent_path_ids(page_id: str, pages: dict[str, PageRecord]) -> tuple[str, ...]:
+    ancestors: list[str] = []
+    current = pages.get(page_id)
+    while current is not None:
+        ancestors.append(current.page_id)
+        current = pages.get(current.parent_id)
+    return tuple(ancestors)

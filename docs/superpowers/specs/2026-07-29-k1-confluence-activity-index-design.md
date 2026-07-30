@@ -100,7 +100,7 @@ links: ["[[k1-activity-catalog]]", "[[k1-confluence-routing]]"]
    - 场景：节日、新服、回归、KVK、日常等。
    - 页面状态：Wiki 当前、历史、过期、废弃、不可访问、待复核。
 4. 主题根页面元数据：pageId、URL、版本、Wiki 更新时间、最近同步时间。
-5. 子页面表格：层级路径、标题、用途、pageId、版本、Wiki 更新时间、URL、单句摘要和复核状态。
+5. 子页面表格：层级路径、标题、别名、用途、pageId、版本、Wiki 更新时间、URL、单句摘要和复核状态。
 6. “回源边界”：提醒具体数值、开放时间和奖励必须读取最新 Wiki。
 
 若当前 CLI 无法提供 Wiki 更新时间，该字段明确写为“未知”，并保留版本号与本地同步时间，不进行推断。
@@ -115,6 +115,7 @@ links: ["[[k1-activity-catalog]]", "[[k1-confluence-routing]]"]
 - 核心机制标签
 - 页面状态
 - 后代页面数量
+- 主题根版本
 - 主题根 Wiki URL
 - 最近同步时间
 
@@ -133,7 +134,7 @@ links: ["[[k1-activity-catalog]]", "[[k1-confluence-routing]]"]
 
 ### 9.1 凭证解析
 
-工具通过现有 Confluence CLI `%USERPROFILE%\.skills\confluence\scripts\confluence.pyz` 访问 Wiki，不自行实现或复制认证逻辑。可以用 `--confluence-cli` 显式覆盖路径，代码和文档中不得固化具体用户名。
+工具通过现有 Confluence CLI `%USERPROFILE%\.skills\confluence\scripts\confluence.pyz` 访问 Wiki，不自行实现或复制认证逻辑。可以用 `--confluence-cli` 显式覆盖路径，代码和文档中不得固化具体用户名。由于公开 CLI 命令会丢失服务端分页元数据，项目内的只读桥接脚本仅复用该安装包的认证客户端，并直接请求子页面接口；桥接层不得输出正文、凭证或原始上游错误。
 
 凭证读取顺序：
 
@@ -146,11 +147,11 @@ links: ["[[k1-activity-catalog]]", "[[k1-confluence-routing]]"]
 
 1. 调用 `check` 验证连接。
 2. 从 pageId `73598402` 开始广度优先遍历。
-3. 对每个页面调用 `page children` 获取直接子页面。
-4. 比较 API 返回的 `total` 与实际结果数量；若不一致则终止同步。
-5. 构造完整的 pageId、父 pageId、层级路径和一级主题归属关系。
+3. 对每个页面通过只读桥接脚本按 `start`、`limit` 分页获取直接子页面，并保留服务端的 `total` 或 `_links.next` 游标。
+4. 校验每页的 `start`、`limit`、`size`、`total` 和下一页游标；分页模式切换、空续页、重复 pageId、游标缺失或计数不一致时终止同步。
+5. 只有显式到达最后一页后才构造完整的 pageId、父 pageId、层级路径和一级主题归属关系，并把 state 标记为完整。
 
-`page children` 使用足够大的 limit；若服务端仍截断且 CLI 不支持分页，工具必须失败并保留旧索引，不能把截断结果当作完整树。
+服务端返回 `total` 时按总数校验；不返回 `total` 时必须提供可验证的 `_links.next` 游标。任何无法证明完整性的结果都必须失败并保留旧索引，不能把截断结果当作完整树。
 
 标准同步命令为 `python tools/sync_k1_activity_index.py --root-page-id 73598402`。命令完成页面发现、增量元数据刷新和待复核报告；人工维护区的语义复核仍由 Codex 在同一任务中完成。
 
@@ -216,6 +217,9 @@ links: ["[[k1-activity-catalog]]", "[[k1-confluence-routing]]"]
 - Markdown 校验失败：不替换旧文件。
 - 页面暂时不可访问：保留旧索引并标记状态。
 - Token、邮箱和认证请求头不得出现在标准输出、日志、state 或测试数据中。
+- 每次 Confluence 子进程使用独立临时目录，并用同名目录占位阻止 `confluence-skill.log` 创建；退出后必须清理该目录。
+- 配置、state、报告、目录、主题文件和事务目标的所有现存路径前缀都必须拒绝符号链接及 Windows reparse point，且目标必须在声明的仓库或主题目录边界内。
+- Wiki URL 必须绑定配置的 HTTPS 来源，拒绝用户信息、片段、非 443 端口、错误路径和重复或不匹配的 pageId。
 - 真实 Wiki 全文不得写入仓库；测试只使用自行构造的短文本。
 
 ## 12. 验证与验收
@@ -231,6 +235,7 @@ links: ["[[k1-activity-catalog]]", "[[k1-confluence-routing]]"]
 - 每个生成 Markdown 页面具备六个必填 frontmatter 字段。
 - 所有活动文件名全库唯一，source URL 的 pageId 与记录一致。
 - 每个子页面恰好归属一个一级主题。
+- `--validate-only` 必须逐项核对 state、每个主题根、全部后代行和总目录字段，包括版本、URL、归属、层级路径、别名与计数。
 - `search_k1_activity.py` 的匹配优先级和歧义返回稳定。
 
 ### 12.2 初始数据验收

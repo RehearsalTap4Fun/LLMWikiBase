@@ -8,12 +8,14 @@ import unicodedata
 from urllib.parse import parse_qs, urlparse
 
 from .markdown import parse_topic_page, validate_topic_page
+from .path_safety import absolute_unresolved, assert_safe_path, assert_within
 
 
 SCORES = {
     "topic-exact": 100,
     "alias-exact": 95,
     "child-exact": 90,
+    "child-alias-exact": 89,
     "topic-child-combination": 88,
     "title-partial": 80,
     "all-tags": 70,
@@ -31,6 +33,7 @@ class SearchChild:
     role: str
     summary: str
     wiki_url: str
+    aliases: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -60,9 +63,10 @@ class SearchHit:
 def load_search_documents(activity_dir: Path) -> tuple[SearchDocument, ...]:
     """Load only validated, managed pages from one configured activity directory."""
     configured_root = Path(activity_dir)
+    assert_safe_path(configured_root)
     if configured_root.is_symlink():
         raise ValueError(f"activity directory is a symlink: {configured_root}")
-    root = configured_root.resolve(strict=False)
+    root = absolute_unresolved(configured_root)
     if not root.exists():
         raise FileNotFoundError(f"activity directory does not exist: {configured_root}")
     if not root.is_dir():
@@ -77,9 +81,9 @@ def load_search_documents(activity_dir: Path) -> tuple[SearchDocument, ...]:
             continue
         if path.is_symlink() or not path.is_file():
             raise ValueError(f"managed topic is not a regular file: {path}")
-        resolved = path.resolve(strict=True)
-        if resolved.parent != root:
-            raise ValueError(f"managed topic resolves outside activity directory: {path}")
+        assert_safe_path(path)
+        resolved = absolute_unresolved(path)
+        assert_within(resolved, root)
 
         page_id = match.group(1)
         text = resolved.read_text(encoding="utf-8")
@@ -95,6 +99,7 @@ def load_search_documents(activity_dir: Path) -> tuple[SearchDocument, ...]:
                 role=child.role,
                 summary=child.summary,
                 wiki_url=child.page.url,
+                aliases=child.page.aliases,
             )
             for child in sorted(
                 parsed.children.values(), key=lambda item: (_normalize(item.page.title), _page_id_key(item.page.page_id))
@@ -104,7 +109,7 @@ def load_search_documents(activity_dir: Path) -> tuple[SearchDocument, ...]:
             SearchDocument(
                 page_id=page_id,
                 topic_title=title,
-                aliases=parsed.curated.aliases,
+                aliases=tuple(dict.fromkeys((*parsed.curated.aliases, *parsed.root.aliases))),
                 tags=parsed.curated.tags,
                 summary=parsed.curated.summary,
                 local_path=resolved,
@@ -152,15 +157,20 @@ def _score_document(
 
     for child in document.children:
         child_title = _normalize(child.title)
+        child_aliases = tuple(_normalize(alias) for alias in child.aliases)
         if query == child_title:
             _add_hit(candidates, document, child, "child-exact")
+        if any(query == alias for alias in child_aliases):
+            _add_hit(candidates, document, child, "child-alias-exact")
         if len(terms) > 1 and _is_topic_child_combination(document, child, terms):
             _add_hit(candidates, document, child, "topic-child-combination")
 
     if _contains(topic_title, query) or any(_contains(alias, query) for alias in aliases):
         _add_hit(candidates, document, None, "title-partial")
     for child in document.children:
-        if _contains(_normalize(child.title), query):
+        if _contains(_normalize(child.title), query) or any(
+            _contains(_normalize(alias), query) for alias in child.aliases
+        ):
             _add_hit(candidates, document, child, "title-partial")
 
     tag_text = _normalize(" ".join(document.tags))
@@ -179,7 +189,7 @@ def _is_topic_child_combination(
     document: SearchDocument, child: SearchChild, terms: tuple[str, ...]
 ) -> bool:
     topic_text = _normalize(" ".join((document.topic_title, *document.aliases)))
-    child_text = _normalize(" ".join((child.title, child.role, child.summary)))
+    child_text = _normalize(" ".join((child.title, *child.aliases, child.role, child.summary)))
     topic_terms = [term for term in terms if _contains(topic_text, term)]
     child_terms = [term for term in terms if not _contains(topic_text, term) and _contains(child_text, term)]
     return bool(topic_terms and child_terms) and len(topic_terms) + len(child_terms) == len(terms)

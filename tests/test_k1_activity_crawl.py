@@ -10,8 +10,10 @@ from tools.k1_activity_index.crawl import (
 class FakeReader:
     def __init__(self, responses):
         self.responses = responses
+        self.calls = []
 
     def children(self, page_id, limit):
+        self.calls.append(page_id)
         return self.responses[page_id]
 
 
@@ -74,3 +76,32 @@ def test_crawl_rejects_a_page_with_multiple_parents():
 
     with pytest.raises(InvalidTreeError, match="300"):
         crawl_tree(reader, "73598402")
+
+
+def test_crawl_rejects_root_to_child_to_grandchild_to_child_cycle_and_keeps_bfs_order():
+    reader = FakeReader(
+        {
+            "73598402": {"total": 2, "results": [_page("100", "A"), _page("200", "B")]},
+            "100": {"total": 1, "results": [_page("101", "A child")]},
+            "200": {"total": 0, "results": []},
+            "101": {"total": 1, "results": [_page("100", "A cycle")]},
+        }
+    )
+
+    with pytest.raises(InvalidTreeError, match="cycle"):
+        crawl_tree(reader, "73598402")
+
+    assert reader.calls == ["73598402", "100", "200", "101"]
+
+
+def test_crawl_propagates_verified_completeness():
+    reader = FakeReader(
+        {
+            "73598402": {"total": 1, "complete": True, "results": [_page("100", "A")]},
+            "100": {"total": 0, "complete": True, "results": []},
+        }
+    )
+
+    snapshot = crawl_tree(reader, "73598402")
+
+    assert snapshot.complete is True

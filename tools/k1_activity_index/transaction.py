@@ -7,6 +7,8 @@ import shutil
 import tempfile
 from typing import Callable
 
+from .path_safety import absolute_unresolved, assert_safe_path
+
 
 Replace = Callable[[Path, Path], None]
 
@@ -38,8 +40,8 @@ def write_batch_atomic(
     corresponding Markdown files.
     """
     deletion_paths = tuple(Path(path) for path in deletions)
-    _reject_conflicting_targets(outputs, deletion_paths)
     _reject_symlink_targets((*outputs, *deletion_paths))
+    _reject_conflicting_targets(outputs, deletion_paths)
     staged_outputs: list[_StagedOutput] = []
     staged_deletions: list[_StagedDeletion] = []
     active_error = False
@@ -62,7 +64,7 @@ def _reject_conflicting_targets(
     outputs: dict[Path, str], deletions: tuple[Path, ...]
 ) -> None:
     targets = (*outputs, *deletions)
-    normalized = [Path(target).resolve(strict=False) for target in targets]
+    normalized = [absolute_unresolved(target) for target in targets]
     if len(normalized) != len(set(normalized)):
         raise ValueError("duplicate replacement/deletion target")
 
@@ -70,6 +72,7 @@ def _reject_conflicting_targets(
 def _reject_symlink_targets(targets) -> None:
     for target in targets:
         target_path = Path(target)
+        assert_safe_path(target_path)
         if target_path.is_symlink():
             raise ValueError(f"output target is a symlink: {target_path}")
 
