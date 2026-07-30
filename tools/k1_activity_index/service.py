@@ -4,13 +4,16 @@ from dataclasses import dataclass, replace
 import json
 from pathlib import Path
 import re
+from urllib.parse import urlparse
 
 from .crawl import crawl_tree
 from .markdown import (
     ChildEntry,
     CuratedTopic,
+    ParsedCatalog,
     ParsedTopic,
     TopicDocument,
+    catalog_group,
     parse_catalog_page,
     parse_existing_topic_page,
     parse_topic_page,
@@ -476,6 +479,8 @@ def _reconcile_topic_documents(
     ownership: dict[str, str] = {}
     for topic_id, parsed in topics.items():
         expected_root = state.pages[topic_id]
+        if parsed.frontmatter_title != expected_root.title:
+            raise ValueError(f"topic frontmatter title mismatch: {topic_id}")
         if (
             _page_signature(parsed.root) != _page_signature(expected_root)
             or parsed.root.space != expected_root.space
@@ -505,9 +510,21 @@ def _reconcile_topic_documents(
         raise ValueError("descendant ownership differs from state")
 
 
-def _reconcile_catalog(state: IndexState, topics: dict[str, ParsedTopic], entries) -> None:
+def _reconcile_catalog(
+    state: IndexState,
+    topics: dict[str, ParsedTopic],
+    catalog: ParsedCatalog,
+) -> None:
+    entries = catalog.entries
     if set(entries) != set(topics):
         raise ValueError("catalog topic rows differ from state")
+    topic_hosts = {
+        urlparse(parsed.root.url).hostname.casefold().rstrip(".")
+        for parsed in topics.values()
+        if urlparse(parsed.root.url).hostname is not None
+    }
+    if catalog.source_page_id != state.root_page_id or topic_hosts != {catalog.source_host}:
+        raise ValueError("catalog source differs from state root")
     for topic_id, parsed in topics.items():
         topic = state.pages[topic_id]
         entry = entries[topic_id]
@@ -527,6 +544,7 @@ def _reconcile_catalog(state: IndexState, topics: dict[str, ParsedTopic], entrie
             topic.version,
             state.synced_at,
             topic.url,
+            catalog_group(topic, parsed.curated),
         )
         actual = (
             entry.page_id,
@@ -541,8 +559,11 @@ def _reconcile_catalog(state: IndexState, topics: dict[str, ParsedTopic], entrie
             entry.version,
             entry.synced_at,
             entry.url,
+            entry.section,
         )
         if actual != expected:
+            if entry.section != catalog_group(topic, parsed.curated):
+                raise ValueError(f"catalog section mismatch: {topic_id}")
             raise ValueError(f"catalog metadata mismatch: {topic_id}")
 
 

@@ -590,6 +590,62 @@ def test_validate_only_rejects_catalog_row_mismatch(tmp_path: Path):
         sync_index(_config(tmp_path, validate_only=True), None, lambda: "unused")
 
 
+def test_validate_only_rejects_catalog_row_moved_to_wrong_status_section(tmp_path: Path):
+    config = _config(tmp_path)
+    sync_index(config, FakeClient(), lambda: "2026-07-29T12:00:00+08:00")
+    catalog = config.wiki_work_dir / "k1-activity-catalog.md"
+    text = catalog.read_text(encoding="utf-8")
+    row = next(line for line in text.splitlines() if line.startswith("| 100 |"))
+    current, historical = text.split("## 历史/过期", 1)
+    current = current.replace(row + "\n", "", 1)
+    historical_lines = historical.splitlines(keepends=True)
+    separator_index = next(
+        index for index, line in enumerate(historical_lines) if line.startswith("| --- |")
+    )
+    historical_lines.insert(separator_index + 1, row + "\n")
+    catalog.write_text(
+        current + "## 历史/过期" + "".join(historical_lines),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="catalog.*section|catalog.*category"):
+        sync_index(_config(tmp_path, validate_only=True), None, lambda: "unused")
+
+
+def test_validate_only_rejects_topic_frontmatter_title_mismatch(tmp_path: Path):
+    config = _config(tmp_path)
+    sync_index(config, FakeClient(), lambda: "2026-07-29T12:00:00+08:00")
+    topic = config.wiki_work_dir / "k1-activities" / "k1-activity-100.md"
+    topic.write_text(
+        topic.read_text(encoding="utf-8").replace(
+            'title: "K1 主题A"',
+            'title: "伪造标题"',
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="frontmatter title"):
+        sync_index(_config(tmp_path, validate_only=True), None, lambda: "unused")
+
+
+def test_validate_only_rejects_catalog_source_root_page_id_mismatch(tmp_path: Path):
+    config = _config(tmp_path)
+    sync_index(config, FakeClient(), lambda: "2026-07-29T12:00:00+08:00")
+    catalog = config.wiki_work_dir / "k1-activity-catalog.md"
+    catalog.write_text(
+        catalog.read_text(encoding="utf-8").replace(
+            "pageId=73598402",
+            "pageId=999",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="catalog source.*root"):
+        sync_index(_config(tmp_path, validate_only=True), None, lambda: "unused")
+
+
 @pytest.mark.parametrize(
     "mutation",
     (

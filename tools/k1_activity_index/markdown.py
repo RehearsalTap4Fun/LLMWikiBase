@@ -1,5 +1,6 @@
 """Safe, deterministic Markdown pages for the K1 activity index."""
 
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, replace
 from datetime import date
 import json
@@ -91,6 +92,7 @@ class ParsedTopic:
     root: PageState
     synced_at: str
     descendant_count: int
+    frontmatter_title: str
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,24 @@ class CatalogEntry:
     version: int
     synced_at: str
     url: str
+    section: str
+
+
+@dataclass(frozen=True)
+class ParsedCatalog(Mapping[str, CatalogEntry]):
+    entries: dict[str, CatalogEntry]
+    source_url: str
+    source_page_id: str
+    source_host: str
+
+    def __getitem__(self, page_id: str) -> CatalogEntry:
+        return self.entries[page_id]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.entries)
+
+    def __len__(self) -> int:
+        return len(self.entries)
 
 
 def parse_topic_page(text: str, *, allow_legacy: bool = False) -> ParsedTopic:
@@ -138,6 +158,7 @@ def parse_topic_page(text: str, *, allow_legacy: bool = False) -> ParsedTopic:
         root=root,
         synced_at=synced_at,
         descendant_count=descendant_count,
+        frontmatter_title=str(frontmatter["title"]),
     )
 
 
@@ -151,7 +172,7 @@ def parse_existing_topic_page(text: str) -> ParsedTopic:
         return parse_topic_page(text, allow_legacy=True)
 
 
-def parse_catalog_page(text: str) -> dict[str, CatalogEntry]:
+def parse_catalog_page(text: str) -> ParsedCatalog:
     frontmatter = _parse_frontmatter(text)
     errors = _frontmatter_errors(frontmatter)
     if errors:
@@ -159,16 +180,23 @@ def parse_catalog_page(text: str) -> dict[str, CatalogEntry]:
     source = frontmatter.get("source")
     if not isinstance(source, str):
         raise ValueError("catalog source URL is invalid")
-    root_host = _validate_confluence_url(source, _source_page_id(source), label="catalog source URL")
+    source_page_id = _source_page_id(source)
+    root_host = _validate_confluence_url(source, source_page_id, label="catalog source URL")
+    if source_page_id is None:
+        raise ValueError("catalog source URL pageId is missing, duplicated, or mismatched")
     layout = _protected_layout(text)
     _reject_unsafe_document_content(text, layout)
     generated = _region_from_layout(text, layout, "generated")
     content = generated[len(GENERATED_START) : -len(GENERATED_END)].strip("\r\n")
     sections = _named_sections(content, ("索引元数据", "当前可用", "历史/过期", "不可访问"))
     entries: dict[str, CatalogEntry] = {}
-    for name in ("当前可用", "历史/过期", "不可访问"):
+    for name, section in (
+        ("当前可用", "current"),
+        ("历史/过期", "historical"),
+        ("不可访问", "inaccessible"),
+    ):
         for row in _table_rows(sections[name], _CATALOG_COLUMNS):
-            entry = _catalog_entry(row)
+            entry = _catalog_entry(row, section)
             if entry.page_id in entries:
                 raise ValueError(f"duplicate catalog pageId: {entry.page_id}")
             _validate_confluence_url(
@@ -178,7 +206,7 @@ def parse_catalog_page(text: str) -> dict[str, CatalogEntry]:
                 label="catalog row URL",
             )
             entries[entry.page_id] = entry
-    return entries
+    return ParsedCatalog(entries, source, source_page_id, root_host)
 
 
 def render_topic_page(document: TopicDocument, existing_text: str | None = None) -> str:
@@ -228,9 +256,9 @@ def render_catalog(
         links=(),
     )
     groups = (
-        ("当前可用", tuple(document for document in documents if _catalog_group(document) == "current")),
-        ("历史/过期", tuple(document for document in documents if _catalog_group(document) == "historical")),
-        ("不可访问", tuple(document for document in documents if _catalog_group(document) == "inaccessible")),
+        ("当前可用", tuple(document for document in documents if catalog_group(document.topic, document.curated) == "current")),
+        ("历史/过期", tuple(document for document in documents if catalog_group(document.topic, document.curated) == "historical")),
+        ("不可访问", tuple(document for document in documents if catalog_group(document.topic, document.curated) == "inaccessible")),
     )
     lines = [GENERATED_START, "## 索引元数据", f"- 同步时间：{_cell(synced_at)}", ""]
     for heading, group in groups:
@@ -823,10 +851,10 @@ def _preserved_children(children: tuple[ChildEntry, ...], previous: dict[str, Ch
     return tuple(merged)
 
 
-def _catalog_group(document: TopicDocument) -> str:
-    if document.topic.availability != "available":
+def catalog_group(topic: PageState, curated: CuratedTopic) -> str:
+    if topic.availability != "available":
         return "inaccessible"
-    if _is_historical(document.topic, document.curated):
+    if _is_historical(topic, curated):
         return "historical"
     return "current"
 
@@ -952,17 +980,22 @@ def _catalog_root_url(documents: tuple[TopicDocument, ...]) -> str:
         documents[0].topic.page_id,
         label="catalog topic URL",
     )
+    root_page_id = documents[0].topic.parent_id
+    if not root_page_id:
+        raise ValueError("catalog topic is missing its root parent")
     for document in documents[1:]:
+        if document.topic.parent_id != root_page_id:
+            raise ValueError("catalog topics do not share one root parent")
         _validate_confluence_url(
             document.topic.url,
             document.topic.page_id,
             expected_host=host,
             label="catalog topic URL",
         )
-    return urlunparse(("https", parsed.netloc, "/pages/viewpage.action", "", urlencode({"pageId": "73598402"}), ""))
+    return urlunparse(("https", parsed.netloc, "/pages/viewpage.action", "", urlencode({"pageId": root_page_id}), ""))
 
 
-def _catalog_entry(row: tuple[str, ...]) -> CatalogEntry:
+def _catalog_entry(row: tuple[str, ...], section: str) -> CatalogEntry:
     (
         page_id,
         title,
@@ -999,6 +1032,7 @@ def _catalog_entry(row: tuple[str, ...]) -> CatalogEntry:
         version=parsed_version,
         synced_at=synced_at,
         url=url,
+        section=section,
     )
 
 

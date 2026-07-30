@@ -263,6 +263,18 @@ def test_catalog_groups_historical_and_inaccessible_topics_and_preserves_intro()
     assert parsed["100"].synced_at == "2026-07-30T12:00:00+08:00"
 
 
+def test_catalog_source_uses_topic_parent_as_root_page_id():
+    document = _document()
+    document = replace(
+        document,
+        topic=replace(document.topic, parent_id="900"),
+    )
+
+    catalog = render_catalog((document,), "2026-07-29T12:00:00+08:00")
+
+    assert 'source: "https://wiki.example.test/pages/viewpage.action?pageId=900"' in catalog
+
+
 @pytest.mark.parametrize(
     ("line_prefix", "replacement", "expected_error"),
     (
