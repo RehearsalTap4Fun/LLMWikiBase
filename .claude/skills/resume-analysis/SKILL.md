@@ -1,6 +1,6 @@
 ---
 name: resume-analysis
-description: Use when evaluating resumes, screening candidates, comparing applicants, planning interviews, or producing interview decisions for 社招、校招、实习、应届生 and 面试复盘.
+description: Use when evaluating resumes, screening candidates, comparing applicants, planning interviews, or producing interview decisions for 社招、校招、实习、应届生、管培生、毕业生 and 面试复盘.
 ---
 
 # 简历分析与面试评估
