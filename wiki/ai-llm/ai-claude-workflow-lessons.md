@@ -1,11 +1,11 @@
 ---
-title: AI 工作流经验沉淀(2026-06~07)
+title: AI 工作流经验沉淀(2026-06~09)
 type: synthesis
 domain: ai-llm
-source: sources/ai-llm/hook-fires-2026-06.md; sources/ai-llm/hook-fires-2026-07.md; sources/ai-llm/2026-06-30-ai-usage-review.md; sources/ai-llm/2026-07-01-ai-usage-review.md; sources/ai-llm/2026-07-02-ai-usage-review.md; sources/ai-llm/2026-07-03-ai-usage-review.md; sources/ai-llm/2026-07-06-ai-usage-review.md; sources/ai-llm/2026-07-07-ai-usage-review.md; sources/ai-llm/2026-07-08-ai-usage-review.md; sources/ai-llm/2026-07-09-ai-usage-review.md; sources/ai-llm/2026-07-10-ai-usage-review.md; sources/ai-llm/2026-07-21-ai-usage-review.md
-date: 2026-07-24
+source: sources/ai-llm/hook-fires-2026-06.md; sources/ai-llm/hook-fires-2026-07.md; sources/ai-llm/hook-fires-2026-09.md; sources/ai-llm/2026-06-30-ai-usage-review.md; sources/ai-llm/2026-07-01-ai-usage-review.md; sources/ai-llm/2026-07-02-ai-usage-review.md; sources/ai-llm/2026-07-03-ai-usage-review.md; sources/ai-llm/2026-07-06-ai-usage-review.md; sources/ai-llm/2026-07-07-ai-usage-review.md; sources/ai-llm/2026-07-08-ai-usage-review.md; sources/ai-llm/2026-07-09-ai-usage-review.md; sources/ai-llm/2026-07-10-ai-usage-review.md; sources/ai-llm/2026-07-21-ai-usage-review.md
+date: 2026-09-10
 confidence: medium
-tags: [claude-code, codex, 工作流, hook, 个人经验, brainstorming, plan, subagent, 自动化, ingest, lint, 协议, 配置工程, 设计意图, xlsx, xmind, 编码, 反向同步, 真相源, 报告成功前自检, 外部installer, 最小覆盖, code-review, spec-compliance, clean-checkout, 开发资产, 证据链, 配置字段, 版本表, Skill路由, 视觉验收, 事实边界]
+tags: [claude-code, codex, 工作流, hook, 个人经验, brainstorming, plan, subagent, 自动化, ingest, lint, 协议, 配置工程, 设计意图, xlsx, xmind, 编码, 反向同步, 真相源, 报告成功前自检, 外部installer, 最小覆盖, code-review, spec-compliance, clean-checkout, 开发资产, 证据链, 配置字段, 版本表, Skill路由, 视觉验收, 事实边界, vendor, 许可证, AGPL, 敏感文件排查]
 links: ["[[hook-usage-log-pipeline]]", "[[windows-python-hook-stdout-ascii]]", "[[llm-wiki-pattern]]"]
 ---
 
@@ -288,6 +288,34 @@ links: ["[[hook-usage-log-pipeline]]", "[[windows-python-hook-stdout-ascii]]", "
 **做法**:把项目仓库路径、Skill 路由和禁用替代项写进项目级指引;例如 K1 正式配置表走 `config-table-editor`,不得用 X1/X15 的 `xcfg-tool` 代替。
 
 **为什么**:路由规则本身是知识库的一部分。它决定后续查询从哪里取证,也决定修改时是否会误碰不属于当前项目的工具链。
+
+## 2026-09-10 补充：vendor 外部 skill 到项目仓库
+
+MindToDoc 项目连续两轮做"把本机/GitHub 上的外部 Skill 拷贝进项目仓库长期使用"的任务(四个派生文档专用 Skill,以及 guizang-ppt-skill/diagram-design 两个宣讲设计 Skill),沉淀出一条可复用的标准操作序列。
+
+### 28. vendor 外部 skill 前先分类目录,别边拷边查
+
+**痛点**:第一轮 vendor 四个 skill 时,先整体 `cp -r` 拷完才发现 `slg-testcase-generator` 里混进了真实 Google OAuth 凭据(`config.json`/`token.json`)、项目专属 Drive/Sheet ID(`project_config.md`)和历史业务产物(`doc/`、`output/`);靠用户明确要求"全部排除只留规则本体"才补救,过程是先 `git add` 再 `git restore --staged` 回退,多走了一轮。
+
+**做法**:动手拷贝前,先用 `find <skill目录> -maxdepth 2 -type f` 过一遍完整文件列表,按三类预判:(a) skill 规则本体(SKILL.md、references/、scripts/ 里的生成逻辑)—— 保留;(b) 运行产物/历史业务数据(用例文档、生成的 xlsx/json、项目专属 config)—— 排除;(c) 敏感凭据(token/密钥/真实资源ID)—— 用 Python 脱敏打印键名和值长度(不回显真实值)确认后排除。第二轮 vendor guizang-ppt-skill/diagram-design 时先浅克隆到 `/tmp` 检查结构再决定拷贝范围,一次到位,没有返工。
+
+**为什么**:vendor 的本质是"把别人的工作目录嫁接进自己的仓库",别人的目录天然混杂运行历史;拷完再筛是把"审查"和"引入"两个动作反了顺序,任何 git 误操作(如错误的相对路径导致多层嵌套)都会在已经 add 的状态下更难排查。
+
+### 29. 私有内部使用场景下,AGPL 许可证不构成引入障碍
+
+**痛点**:看到 AGPL-3.0 协议第一反应是"开源协议要求项目也开源",容易直接放弃有价值的资源(guizang-ppt-skill 是 26k star 的成熟项目)。
+
+**做法**:AGPL-3.0 的核心义务由"conveying"(对外分发)或"remote network interaction"(作为可远程访问的网络服务提供给第三方)触发,纯私有仓库内部运行和修改、不分发、不部署成对外服务,不落入开源回馈义务。判断前用 WebFetch 直接查 LICENSE 原文对应条款(如条款13),不要凭协议名称的刻板印象下结论;把判断结果和触发条件写入 vendor 说明,提醒未来"如果要对外分发或部署为服务,需要重新评估"。
+
+**为什么**:协议名称容易触发过度谨慎的一刀切拒绝,但实际约束取决于具体使用方式;核实一次、记录清楚,比每次重新纠结更省事,也避免误判损失掉高质量的可用资源。
+
+### 30. vendor 后如遇工具自带的"检查上游更新"逻辑,显式改写而非放任
+
+**痛点**:guizang-ppt-skill 原生 SKILL.md 里有一步"启动前 `git fetch` 检查上游更新",vendor 后该目录已不是独立 git 仓库,虽然该逻辑本身写了"非 git 仓库时说明并继续"的兜底不会报错,但每次触发都会执行两条空转的 git 命令。
+
+**做法**:vendor 完成后过一遍源 SKILL.md/文档里所有依赖"独立环境"的假设(自更新检查、相对路径假设、独立安装步骤等),显式改写成契合 vendor 场景的说明(例如"已 vendor,跳过自动检查,人工比对 diff"),而不是留着旧逻辑指望兜底分支不出问题。
+
+**为什么**:兜底分支能防止报错,但不代表行为合理;显式改写能让后续维护者(或未来的自己)一眼看出这是 vendor 版本的既知差异,而不必重新推理"为什么这条指令在这个项目里总是空转"。
 
 ## 与本知识库其他页的关系
 

@@ -61,7 +61,7 @@
 
 **综合**
 - [[llm-wiki-vs-rag]] — 规模决定架构:个人规模为何选纯 wiki 而非 RAG(5万–10万 token 阈值)。
-- [[ai-claude-workflow-lessons]] — AI 工作流经验:Claude/Codex 配置工程、spec grounding、事实边界、配置字段拆分、版本表覆盖、Skill 路由与可见验收护栏。
+- [[ai-claude-workflow-lessons]] — AI 工作流经验:Claude/Codex 配置工程、spec grounding、事实边界、配置字段拆分、版本表覆盖、Skill 路由与可见验收护栏、vendor 外部 skill 与许可证判断。
 
 **素材摘要**
 - [[karpathy-llm-wiki]] — Karpathy gist:模式理念源头。
